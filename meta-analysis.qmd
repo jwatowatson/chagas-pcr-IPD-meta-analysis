@@ -1,0 +1,63 @@
+---
+title: "Chagas Meta-analysis"
+author: "James Watson"
+format: html
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
+                      echo = T, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+library(RColorBrewer)
+library(tidyverse)
+source('functions.R')
+
+```
+
+## Load data
+
+```{r}
+load('RData/pcr_chagas.RData')
+load('RData/ID_map.RData')
+pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)
+```
+
+## Plot PCR data
+
+Triplicates
+
+```{r}
+pcr_chagas = pcr_chagas %>% group_by(USUBJID, VISIT, MBGRPID) %>%
+  mutate(
+    CT = ifelse(CT<25, NA, CT),
+    repeats = sum(!is.na(CT)),
+    CT_mean = mean(CT,na.rm = T),
+    CT_sd = sd(CT,na.rm=T),
+    n_40 = sum(CT==40,na.rm = T)
+    ) 
+
+# %>% filter(repeats==3) %>%
+pcr_chagas_trip = pcr_chagas %>% 
+  filter(repeats==3, n_40<=3) %>%
+  distinct(USUBJID, VISIT, MBGRPID, .keep_all = T)
+pcr_chagas_trip %>% ggplot(aes(x=CT_mean, y=CT_sd,color=as.factor(n_40)))+
+  geom_point()+
+  geom_smooth(data = filter(pcr_chagas_trip, n_40==0))+
+  theme_classic()+
+  xlab('Mean CT value across triplicates')+
+  ylab('Standard deviation of CT values')+
+  labs(color='CT=40') 
+
+```
+
+```{r pcr_plot, fig.width=12, fig.height=12}
+pcr_chagas = pcr_chagas %>% #filter(ARM %in% c('PLACEBO')) %>%
+  arrange(ARM, VISITNUM, USUBJID, MBGRPID, MBREFID)
+par(mar=c(7,9,1,9))
+make_matrix_pcr(pcr_dat = pcr_chagas)
+```
+
+Analysis
