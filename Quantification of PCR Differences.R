@@ -50,10 +50,25 @@ pcr_score <- pcr_chagas %>%
   summarise(total_score = sum(score),
             avg_score = mean(score))
 
+EOT <- data.frame(
+  ARMCD = c(
+    "PLACEBO", "150BZN4W", "150BZN4WFOS",
+    "300BZN2W", "300BZN4W", "300BZN8W", "300BZN8WFOS"
+  ),
+  EOT_VISITDY = c(
+    3, 8, 8, 6, 8, 12, 12
+  )
+)
+
 ggplot(pcr_score, aes(x = VISITNUM, y = total_score)) +
-  geom_bar(stat = "identity") +
+  geom_bar(stat = "identity", col = "#00b386", fill = "#00b386") +
   facet_wrap(~ARMCD) +
-  theme_bw()
+  theme_bw()+
+  geom_vline(data = EOT, aes(xintercept = EOT_VISITDY + 0.5), 
+             lwd = 1.12, col = "#b3002d") +
+  geom_text(data = EOT, mapping = aes(x = EOT_VISITDY + 2.4, y = 460, 
+                                      label = "EOT"), col = "#b3002d")
+
 
 pt_dosing <- data.frame(
   VISITNUM = 1:17,
@@ -204,3 +219,13 @@ kruskal.test(DIFF ~ ARMCD,
                          data = pcr_visit_score %>%
                            filter(!is.na(DIFF),
                                   ARMCD != "PLACEBO"))
+
+kruskal.test(DIFF ~ ARMCD, 
+             data = pcr_visit_score %>%
+               filter(!is.na(DIFF_M6),
+                      ARMCD != "PLACEBO"))
+
+kruskal.test(DIFF ~ ARMCD, 
+             data = pcr_visit_score %>%
+               filter(!is.na(DIFF_M12),
+                      ARMCD != "PLACEBO"))
