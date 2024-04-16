@@ -7,6 +7,9 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
     mutate(
       ARM = case_when(
         ARM=='BENZNIDAZOLE' ~ 'BENZNIDAZOLE 300MG 8W',
+        ARM=='FEXINIDAZOLE 3.6g' ~ 'FEX 1200MG 3D',
+        ARM=='FEXINIDAZOLE 6.0g' ~ 'FEX 600MG 10D',
+        ARM=='FEXINIDAZOLE 6.6g' ~ 'FEX 600MG 3D + 1200MG 4D',
         T ~ ARM
       )
     )
@@ -125,20 +128,20 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
   pcr_chagas$MBDY[pcr_chagas$USUBJID == '603' & pcr_chagas$VISIT == 'Screening'] = 0
   
   pcr_chagas = pcr_chagas %>%
-    mutate(ARM = factor(ARM, 
-                        levels = c("PLACEBO",
-                                   "BENZNIDAZOLE 300MG 2W",
-                                   "BENZNIDAZOLE 150MG 4W", 
-                                   "BENZNIDAZOLE 300MG 4W",
-                                   "BENZNIDAZOLE 150MG 4W FOSRAVUCONAZOLE",
-                                   "BENZNIDAZOLE 300MG WEEKLY 8W FOSRAVUCONAZOLE",
-                                   "BENZNIDAZOLE 300MG 8W",
-                                   "FEXINIDAZOLE 3.6g",
-                                   "FEXINIDAZOLE 6.0g",
-                                   "FEXINIDAZOLE 6.6g",
-                                   "FOSRAVUCONAZOLE HIGH DOSE 8w",
-                                   "FOSRAVUCONAZOLE LOW DOSE 8w",
-                                   "FOSRAVUCONAZOLE SHORT DOSE 4w"))) %>%
+    # mutate(ARM = factor(ARM, 
+    #                     levels = c("PLACEBO",
+    #                                "BENZNIDAZOLE 300MG 2W",
+    #                                "BENZNIDAZOLE 150MG 4W", 
+    #                                "BENZNIDAZOLE 300MG 4W",
+    #                                "BENZNIDAZOLE 150MG 4W FOSRAVUCONAZOLE",
+    #                                "BENZNIDAZOLE 300MG WEEKLY 8W FOSRAVUCONAZOLE",
+    #                                "BENZNIDAZOLE 300MG 8W",
+    #                                "FEXINIDAZOLE 3.6g",
+    #                                "FEXINIDAZOLE 6.0g",
+    #                                "FEXINIDAZOLE 6.6g",
+    #                                "FOSRAVUCONAZOLE HIGH DOSE 8w",
+    #                                "FOSRAVUCONAZOLE LOW DOSE 8w",
+    #                                "FOSRAVUCONAZOLE SHORT DOSE 4w"))) %>%
     # filter(ID != 'CGTNWOV_347') %>% #person who only took 3 days
     group_by(ID) %>%
     mutate(EOT = case_when(
@@ -149,9 +152,9 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
       ARM == 'BENZNIDAZOLE 300MG 8W' ~ 56,
       ARM == 'BENZNIDAZOLE 300MG WEEKLY 8W FOSRAVUCONAZOLE' ~ 56,
       ARM == 'BENZNIDAZOLE 300MG 2W' ~ 14,
-      ARM == "FEXINIDAZOLE 3.6g" ~ 3,
-      ARM == "FEXINIDAZOLE 6.0g" ~ 10,
-      ARM == "FEXINIDAZOLE 6.6g" ~ 10,
+      ARM == 'FEX 1200MG 3D' ~ 3,
+      ARM == 'FEX 600MG 10D' ~ 10,
+      ARM == 'FEX 600MG 3D + 1200MG 4D' ~ 7,
       ARM == "FOSRAVUCONAZOLE HIGH DOSE 8w" ~ 56,
       ARM == "FOSRAVUCONAZOLE LOW DOSE 8w" ~ 56,
       ARM == "FOSRAVUCONAZOLE SHORT DOSE 4w" ~ 28

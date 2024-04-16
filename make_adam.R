@@ -16,7 +16,7 @@ table(dm_chagas$STUDYID)
 
 pcr_chagas=chagas_adam(dm_chagas = dm_chagas, in_chagas = in_chagas, mb_chagas = mb_chagas,ts_chagas = ts_chagas)
 
-
+unique(pcr_chagas$EOT)
 
 save(pcr_chagas, file = 'RData/pcr_chagas.RData')
 
