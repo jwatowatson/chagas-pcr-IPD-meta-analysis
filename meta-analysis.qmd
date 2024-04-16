@@ -29,7 +29,7 @@ pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)
 
 Triplicates
 
-```{r}
+```{r heterosckedasticity, fig.height=8, fig.width=12}
 pcr_chagas = pcr_chagas %>% group_by(USUBJID, VISIT, MBGRPID) %>%
   mutate(
     CT = ifelse(CT<25, NA, CT),
@@ -37,7 +37,7 @@ pcr_chagas = pcr_chagas %>% group_by(USUBJID, VISIT, MBGRPID) %>%
     CT_mean = mean(CT,na.rm = T),
     CT_sd = sd(CT,na.rm=T),
     n_40 = sum(CT==40,na.rm = T)
-    ) 
+  ) 
 
 # %>% filter(repeats==3) %>%
 pcr_chagas_trip = pcr_chagas %>% 
@@ -47,17 +47,94 @@ pcr_chagas_trip %>% ggplot(aes(x=CT_mean, y=CT_sd,color=as.factor(n_40)))+
   geom_point()+
   geom_smooth(data = filter(pcr_chagas_trip, n_40==0))+
   theme_classic()+
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold"))+
   xlab('Mean CT value across triplicates')+
   ylab('Standard deviation of CT values')+
   labs(color='CT=40') 
 
 ```
 
-```{r pcr_plot, fig.width=12, fig.height=12}
-pcr_chagas = pcr_chagas %>% #filter(ARM %in% c('PLACEBO')) %>%
+```{r pcr_plot, fig.width=15, fig.height=12}
+pcr_chagas = pcr_chagas %>% 
   arrange(ARM, VISITNUM, USUBJID, MBGRPID, MBREFID)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas)
+
 par(mar=c(7,9,1,9))
-make_matrix_pcr(pcr_dat = pcr_chagas)
+
+my_breaks = c(10, 34, 36, 38, 39.99999,40)
+my_breaks_legend = c('<34','34-36','36-38','38-40','>=40')
+my_cols = c(brewer.pal(4, 'RdYlBu'),brewer.pal(9, 'Pastel1')[9])
+visit_labels = gsub(x = unique(pcr_chagas$VISIT),
+                    pattern = '(',replacement = '\n(',
+                    fixed = T)
+my_labs=unique(pcr_chagas$ARM)
+my_labs=gsub(pattern = 'BENZNIDAZOLE',replacement = 'BNZ',x = my_labs)
+my_labs=gsub(pattern = 'FOSRAVUCONAZOLE',replacement = '\nE1224',x = my_labs)
+arm_labels=gsub(pattern = ' WEEKLY',replacement = '/WK',x = my_labs)
+
+xx2 = pcr_chagas %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))-0.5
+
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                visit_labels = visit_labels,
+                arm_labels = arm_labels,ind_y = ind_y)
+```
+
+two versus eight weeks
+
+```{r two_vs_eight, fig.height=6, fig.width=12}
+ids_2_8 = paste('CGTNWOV',
+                unique(pcr_chagas$USUBJID[pcr_chagas$ARM %in% c('BENZNIDAZOLE 300MG 2W',
+                                                          'BENZNIDAZOLE 300MG 8W')]),sep = '_')
+par(mar=c(7,4,0.5,0.5))
+plot_pcr_matrix(pcr_mat = pcr_mat[ids_2_8,  ],
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                visit_labels = visit_labels,
+                arm_labels = c('2 weeks','8 weeks'),ind_y = c(.5,30.5))
+```
+
+```{r mix_up, fig.height=5, fig.width=12}
+plot_pcr_matrix(pcr_mat = pcr_mat[paste('CGTNWOV', c('110','451'),sep = '_'),  ],
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                visit_labels = visit_labels,
+                arm_labels = c('110','451'),ind_y = 1:2)
 ```
 
 Analysis
+
+```{r}
+strong_fail = 38
+summary_outcomes = pcr_chagas %>%
+  filter(!is.na(CT), Day_frm_rand>EOT) %>%
+  group_by(ID, VISIT) %>%
+  mutate(N_PCRs = length(CT),
+         N_pos = sum(CT < 40),
+         N_weak_pos = sum(CT>strong_fail & CT<40),
+         Borderline_pos = (N_pos==1 & N_weak_pos==1)) %>%
+  distinct(ID, VISIT, .keep_all = T) %>%
+  group_by(ID) %>%
+  mutate(
+    N_fup_visits = length(N_PCRs),
+    N_fup_pcrs = sum(N_PCRs),
+    N_pos_tot = sum(N_pos),
+         N_weak_pos_tot = sum(N_weak_pos)) %>%
+  distinct(ID, .keep_all = T) %>%
+  filter(N_fup_visits>1)
+
+summary_outcomes %>% group_by(ARM) %>%
+  summarise(
+     N = length(N_pos_tot),
+    `FUP Visits` = median(N_fup_visits),
+    Fail = sum(N_pos_tot>0),
+    `Weak Fail` = sum(N_weak_pos_tot==1 & N_pos_tot==1),
+    `Strong Fail` = Fail- `Weak Fail`
+  )
+```
