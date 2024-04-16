@@ -57,7 +57,14 @@ pcr_chagas_trip %>% ggplot(aes(x=CT_mean, y=CT_sd,color=as.factor(n_40)))+
 
 ```{r pcr_plot, fig.width=15, fig.height=12}
 pcr_chagas = pcr_chagas %>% 
-  arrange(ARM, VISITNUM, USUBJID, MBREFID, MBGRPID)
+  filter(PCR_number<=9) %>%
+  group_by(ID,VISIT) %>%
+  mutate(N_pos = sum(CT<40)) %>%
+  group_by(ID) %>%
+  mutate(N_pos_baseline = unique(N_pos[VISIT=='Screening']),
+         Mean_CT_inv_baseline = 40-mean(CT_mean[VISIT=='Screening'])) %>%
+  arrange(ARM, N_pos_baseline, Mean_CT_inv_baseline, 
+          Day_frm_rand, USUBJID, MBREFID, MBGRPID)
 my_breaks = c(10, 34, 36, 38, 39.99999,40)
 my_breaks_legend = c('<34','34-36','36-38','38-40','>=40')
 my_cols = c(brewer.pal(4, 'RdYlBu'),brewer.pal(9, 'Pastel1')[9])

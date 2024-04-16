@@ -165,7 +165,7 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
 
 
 
-make_matrix_pcr = function(pcr_dat, N_max_PCR=NA){
+make_matrix_pcr = function(pcr_dat, N_max_PCR=9){
   
   require(RColorBrewer)
   if(is.na(N_max_PCR)) N_max_PCR=max(pcr_dat$PCR_number)
@@ -190,6 +190,8 @@ make_matrix_pcr = function(pcr_dat, N_max_PCR=NA){
   return(pcr_mat)
   
 }
+
+
 plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols, 
                            visit_labels, arm_labels,
                            ind_y){  
@@ -207,6 +209,6 @@ plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols,
   
   abline(v=(1:(ncol(pcr_mat)/9))*9 + 0.5, lty=2)
   
-  axis(2, at = ind_y+15, labels = arm_labels,las=1,tick = F)
+  axis(2, at = ind_y, labels = arm_labels,las=1,tick = F)
   
 }
