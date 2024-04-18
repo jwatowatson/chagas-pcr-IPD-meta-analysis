@@ -1,5 +1,5 @@
 # This function makes an ADAM dataset
-chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
+chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas){
   
   # only select individuals who were randomised
   dm_chagas = dm_chagas %>% 
@@ -20,6 +20,7 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
         T ~ ARM
       )
     )
+  ds_chagas = ds_chagas %>% filter(DSTERM=='RANDOMIZED')
   
   ## The solution for getting days from randomisation is very ad hoc and not great...
   in_chagas = in_chagas %>% 

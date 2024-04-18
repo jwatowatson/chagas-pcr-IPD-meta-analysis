@@ -214,7 +214,26 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 ```
 
 
+```{r bnz_150_4wks, fig.height=10, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(STUDYID %in% c('BENDITA'),
+         ARM %in% c('BNZ 150MG 4W'))
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
 
+par(mar=c(2,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$ID),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = 1:nrow(pcr_mat),cex_y_lab = .7)
+
+# View(dat_summary %>% filter(ID %in% c('BENDITA_466','BENDITA_594')))
+
+```
 
 
 ```{r mix_up, fig.height=10, fig.width=12}
@@ -319,16 +338,41 @@ points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
 
 ### stan model of cure
 
+compile model
+
 ```{r}
-
-
 file <- file.path("chagas_efficacy_model_v2.stan")
 mod <- cmdstan_model(file)
+```
 
-pcr_summary = pcr_chagas %>% 
-  filter(STUDYID=='BENDITA') %>%
+
+fit to Bendita data first to check if working
+
+```{r stan_model, fig.width=10, fig.height=8}
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(!is.na(N_pos_sample), 
+         !is.na(N_PCRs_sample), 
+         Day_frm_rand>EOT,
+         STUDYID=='BENDITA',
+         !USUBJID %in% c('594','681','342')) 
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(2,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$ARM),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                cex_y_lab = .7)
+
+pcr_summary = pcr_chagas_ss %>%
   distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
-  filter(!is.na(N_pos_sample), !is.na(N_PCRs_sample), Day_frm_rand>EOT) %>%
+  
   ungroup() %>% 
   mutate(
     ID_numeric = as.numeric(as.factor(ID)),
@@ -359,6 +403,85 @@ fit <- mod$sample(
   refresh = 100 # print update every 500 iters
 )
 mcmc_trace(fit$draws(c('p_1','q','p_2')))
+gg_cure=mcmc_intervals(fit$draws(c("p_1")))+
+  ggplot2::scale_y_discrete(labels =
+                              c("p_1[7]" ="Placebo",
+                                "p_1[3]" ="BNZ 2wks",
+                                "p_1[1]" ="BNZ 150 4wks",
+                                "p_1[4]" ="BNZ 300 4wks",
+                                "p_1[2]" ="BNZ 150 4wks + E1224",
+                                "p_1[6]" ="BNZ 300 wkly + E1224",
+                                "p_1[5]" ="BNZ 300 8 wks"))+
+  ggtitle('Probability of cure')+xlim(0,1)+theme_minimal()
+gg_sample=mcmc_intervals(fit$draws(c("p_2")))+
+  ggplot2::scale_y_discrete(labels =
+                              c("p_2[7]" ="Placebo",
+                                "p_2[3]" ="BNZ 2wks",
+                                "p_2[1]" ="BNZ 150 4wks",
+                                "p_2[4]" ="BNZ 300 4wks",
+                                "p_2[2]" ="BNZ 150 4wks + E1224",
+                                "p_2[6]" ="BNZ 300 wkly + E1224",
+                                "p_2[5]" ="BNZ 300 8 wks"))+
+  ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
+pp=grid.arrange(gg_cure, gg_sample,nrow=2)
 
+```
+
+
+
+Fit to all data?
+
+```{r mega_stan_fit}
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(!is.na(N_pos_sample), 
+         !is.na(N_PCRs_sample), 
+         Day_frm_rand>EOT,
+         !USUBJID %in% c('594','681','342')) 
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(2,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$ARM),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                cex_y_lab = .7)
+
+pcr_summary = pcr_chagas_ss %>%
+  distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
+  
+  ungroup() %>% 
+  mutate(
+    ID_numeric = as.numeric(as.factor(ID)),
+    ARM_numeric = as.numeric(as.factor(ARM))) %>%
+  arrange(ID) %>% group_by(ID) %>%
+  mutate(
+    N_fup_samples = length(N_PCRs_sample)
+  )
+pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
+table(pcr_unique$N_fup_samples, pcr_unique$ARM)
+ind_not_dup = which(!duplicated(pcr_summary$ID))
+data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
+                      n_samples = nrow(pcr_summary),
+                      Kmax = max(pcr_summary$N_PCRs_sample),
+                      K_arms = length(unique(pcr_summary$ARM)),
+                      trt_group = pcr_summary$ARM_numeric[ind_not_dup],
+                      y_pos = pcr_summary$N_pos_sample,
+                      K_FUP = pcr_summary$N_PCRs_sample,
+                      ind_start = ind_not_dup,
+                      ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
+                      PCR_specificity=1)
+
+fit <- mod$sample(
+  data = data_list_stan,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,iter_sampling = 2000,
+  refresh = 100 # print update every 500 iters
+)
 ```
 

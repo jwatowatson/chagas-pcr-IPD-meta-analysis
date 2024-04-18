@@ -121,27 +121,71 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 ✖ dplyr::lag()    masks stats::lag()
 ℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">'functions.R'</span>)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># source('make_adam.R')</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cmdstanr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>This is cmdstanr version 0.7.1
+- CmdStanR documentation and vignettes: mc-stan.org/cmdstanr
+- CmdStan path: /Users/jwatowatson/.cmdstan/cmdstan-2.34.1
+- CmdStan version: 2.34.1</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(posterior)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>This is posterior version 1.5.0
+
+Attaching package: 'posterior'
+
+The following objects are masked from 'package:stats':
+
+    mad, sd, var
+
+The following objects are masked from 'package:base':
+
+    %in%, match</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(bayesplot)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>This is bayesplot version 1.11.0
+- Online documentation and vignettes at mc-stan.org/bayesplot
+- bayesplot theme set to bayesplot::theme_default()
+   * Does _not_ affect other ggplot2 plots
+   * See ?bayesplot_theme_set for details on theme setting
+
+Attaching package: 'bayesplot'
+
+The following object is masked from 'package:posterior':
+
+    rhat</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(gridExtra)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'gridExtra'
+
+The following object is masked from 'package:dplyr':
+
+    combine</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">'functions.R'</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co"># source('make_adam.R')</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Theoretical considerations around sensitivity</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(expint)</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># probability that the max of k independent poisson draws is zero is given by the incomplete</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># gamma function</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>my_lambdas <span class="ot">=</span> <span class="fu">seq</span>(<span class="at">from=</span><span class="fu">log10</span>(<span class="dv">1</span><span class="sc">/</span><span class="dv">5000</span>), <span class="at">to=</span><span class="fu">log10</span>(<span class="dv">5000</span><span class="sc">/</span><span class="dv">5000</span>),<span class="at">length.out=</span><span class="dv">100</span>)</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">las=</span><span class="dv">1</span>, <span class="at">cex.lab=</span><span class="fl">1.3</span>, <span class="at">cex.axis=</span><span class="fl">1.3</span>)</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 15 independent draws</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(my_lambdas, <span class="dv">1</span><span class="sc">-</span>expint<span class="sc">::</span><span class="fu">gammainc</span>(<span class="dv">1</span>,<span class="dv">5</span><span class="sc">*</span>(<span class="dv">10</span><span class="sc">^</span>my_lambdas))<span class="sc">^</span><span class="dv">15</span>,</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>     <span class="at">type=</span><span class="st">'l'</span>, <span class="at">panel.first=</span><span class="fu">grid</span>(), <span class="at">xaxt=</span><span class="st">'n'</span>, <span class="at">xlab=</span><span class="st">'Parasite density per ml'</span>,</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>     <span class="at">ylab=</span><span class="st">'Probability at least one draw has at least 1 parasite'</span>,<span class="at">lwd=</span><span class="dv">3</span>, <span class="at">col=</span><span class="st">'darkred'</span>)</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>vals <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.0002</span>, <span class="fl">0.001</span>, <span class="fl">0.01</span>, .<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">10</span>)</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="fu">axis</span>(<span class="dv">1</span>, <span class="at">at =</span> <span class="fu">log10</span>(vals),<span class="at">labels =</span> vals)</span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="fu">abline</span>(<span class="at">h=</span><span class="fl">0.5</span>,<span class="at">lty=</span><span class="dv">2</span>)</span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5 independent draws</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="fu">lines</span>(my_lambdas, <span class="dv">1</span><span class="sc">-</span>expint<span class="sc">::</span><span class="fu">gammainc</span>(<span class="dv">1</span>,<span class="dv">5</span><span class="sc">*</span>(<span class="dv">10</span><span class="sc">^</span>my_lambdas))<span class="sc">^</span><span class="dv">5</span>,<span class="at">lty=</span><span class="dv">2</span>,<span class="at">lwd=</span><span class="dv">3</span>,<span class="at">col=</span><span class="st">'darkblue'</span>)</span>
-<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co"># single draw</span></span>
-<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="fu">lines</span>(my_lambdas, <span class="dv">1</span><span class="sc">-</span>expint<span class="sc">::</span><span class="fu">gammainc</span>(<span class="dv">1</span>,<span class="dv">5</span><span class="sc">*</span>(<span class="dv">10</span><span class="sc">^</span>my_lambdas)),<span class="at">lty=</span><span class="dv">3</span>,<span class="at">lwd=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(expint)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># probability that the max of k independent poisson draws is zero is given by the incomplete</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># gamma function</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>my_lambdas <span class="ot">=</span> <span class="fu">seq</span>(<span class="at">from=</span><span class="fu">log10</span>(<span class="dv">1</span><span class="sc">/</span><span class="dv">5000</span>), <span class="at">to=</span><span class="fu">log10</span>(<span class="dv">5000</span><span class="sc">/</span><span class="dv">5000</span>),<span class="at">length.out=</span><span class="dv">100</span>)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">las=</span><span class="dv">1</span>, <span class="at">cex.lab=</span><span class="fl">1.3</span>, <span class="at">cex.axis=</span><span class="fl">1.3</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 15 independent draws</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(my_lambdas, <span class="dv">1</span><span class="sc">-</span>expint<span class="sc">::</span><span class="fu">gammainc</span>(<span class="dv">1</span>,<span class="dv">5</span><span class="sc">*</span>(<span class="dv">10</span><span class="sc">^</span>my_lambdas))<span class="sc">^</span><span class="dv">15</span>,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>     <span class="at">type=</span><span class="st">'l'</span>, <span class="at">panel.first=</span><span class="fu">grid</span>(), <span class="at">xaxt=</span><span class="st">'n'</span>, <span class="at">xlab=</span><span class="st">'Parasite density per ml'</span>,</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>     <span class="at">ylab=</span><span class="st">'Probability at least one draw has at least 1 parasite'</span>,<span class="at">lwd=</span><span class="dv">3</span>, <span class="at">col=</span><span class="st">'darkred'</span>)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>vals <span class="ot">=</span> <span class="fu">c</span>(<span class="fl">0.0002</span>, <span class="fl">0.001</span>, <span class="fl">0.01</span>, .<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">10</span>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="fu">axis</span>(<span class="dv">1</span>, <span class="at">at =</span> <span class="fu">log10</span>(vals),<span class="at">labels =</span> vals)</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="fu">abline</span>(<span class="at">h=</span><span class="fl">0.5</span>,<span class="at">lty=</span><span class="dv">2</span>)</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 5 independent draws</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="fu">lines</span>(my_lambdas, <span class="dv">1</span><span class="sc">-</span>expint<span class="sc">::</span><span class="fu">gammainc</span>(<span class="dv">1</span>,<span class="dv">5</span><span class="sc">*</span>(<span class="dv">10</span><span class="sc">^</span>my_lambdas))<span class="sc">^</span><span class="dv">5</span>,<span class="at">lty=</span><span class="dv">2</span>,<span class="at">lwd=</span><span class="dv">3</span>,<span class="at">col=</span><span class="st">'darkblue'</span>)</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="co"># single draw</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="fu">lines</span>(my_lambdas, <span class="dv">1</span><span class="sc">-</span>expint<span class="sc">::</span><span class="fu">gammainc</span>(<span class="dv">1</span>,<span class="dv">5</span><span class="sc">*</span>(<span class="dv">10</span><span class="sc">^</span>my_lambdas)),<span class="at">lty=</span><span class="dv">3</span>,<span class="at">lwd=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -153,38 +197,38 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="load-data" class="level2">
 <h2 class="anchored" data-anchor-id="load-data">Load data</h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">'RData/pcr_chagas.RData'</span>)</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># load('RData/ID_map.RData')</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">'RData/pcr_chagas.RData'</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># load('RData/ID_map.RData')</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="plot-pcr-data" class="level2">
 <h2 class="anchored" data-anchor-id="plot-pcr-data">Plot PCR data</h2>
 <p>Triplicates</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID, VISIT, MBGRPID) <span class="sc">%&gt;%</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">CT =</span> <span class="fu">ifelse</span>(CT<span class="sc">&lt;</span><span class="dv">25</span>, <span class="cn">NA</span>, CT),</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">repeats =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(CT)),</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">CT_mean =</span> <span class="fu">mean</span>(CT,<span class="at">na.rm =</span> T),</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">CT_sd =</span> <span class="fu">sd</span>(CT,<span class="at">na.rm=</span>T),</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">n_40 =</span> <span class="fu">sum</span>(CT<span class="sc">==</span><span class="dv">40</span>,<span class="at">na.rm =</span> T)</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  ) </span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>pcr_chagas_trip <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(repeats<span class="sc">==</span><span class="dv">3</span>, n_40<span class="sc">&lt;=</span><span class="dv">3</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(USUBJID, VISIT, MBGRPID, <span class="at">.keep_all =</span> T)</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>pcr_chagas_trip <span class="sc">%&gt;%</span> <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x=</span>CT_mean, <span class="at">y=</span>CT_sd,<span class="at">color=</span><span class="fu">as.factor</span>(n_40)))<span class="sc">+</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>()<span class="sc">+</span></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_smooth</span>(<span class="at">data =</span> <span class="fu">filter</span>(pcr_chagas_trip, n_40<span class="sc">==</span><span class="dv">0</span>))<span class="sc">+</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_classic</span>()<span class="sc">+</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text=</span><span class="fu">element_text</span>(<span class="at">size=</span><span class="dv">12</span>),</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title=</span><span class="fu">element_text</span>(<span class="at">size=</span><span class="dv">14</span>,<span class="at">face=</span><span class="st">"bold"</span>))<span class="sc">+</span></span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">xlab</span>(<span class="st">'Mean CT value across triplicates'</span>)<span class="sc">+</span></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ylab</span>(<span class="st">'Standard deviation of CT values'</span>)<span class="sc">+</span></span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">color=</span><span class="st">'CT=40'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID, VISIT, MBGRPID) <span class="sc">%&gt;%</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">CT =</span> <span class="fu">ifelse</span>(CT<span class="sc">&lt;</span><span class="dv">25</span>, <span class="cn">NA</span>, CT),</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">repeats =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(CT)),</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">CT_mean =</span> <span class="fu">mean</span>(CT,<span class="at">na.rm =</span> T),</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">CT_sd =</span> <span class="fu">sd</span>(CT,<span class="at">na.rm=</span>T),</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">n_40 =</span> <span class="fu">sum</span>(CT<span class="sc">==</span><span class="dv">40</span>,<span class="at">na.rm =</span> T)</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>  ) </span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>pcr_chagas_trip <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(repeats<span class="sc">==</span><span class="dv">3</span>, n_40<span class="sc">&lt;=</span><span class="dv">3</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(USUBJID, VISIT, MBGRPID, <span class="at">.keep_all =</span> T)</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>pcr_chagas_trip <span class="sc">%&gt;%</span> <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x=</span>CT_mean, <span class="at">y=</span>CT_sd,<span class="at">color=</span><span class="fu">as.factor</span>(n_40)))<span class="sc">+</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>()<span class="sc">+</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_smooth</span>(<span class="at">data =</span> <span class="fu">filter</span>(pcr_chagas_trip, n_40<span class="sc">==</span><span class="dv">0</span>))<span class="sc">+</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_classic</span>()<span class="sc">+</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text=</span><span class="fu">element_text</span>(<span class="at">size=</span><span class="dv">12</span>),</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        <span class="at">axis.title=</span><span class="fu">element_text</span>(<span class="at">size=</span><span class="dv">14</span>,<span class="at">face=</span><span class="st">"bold"</span>))<span class="sc">+</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">xlab</span>(<span class="st">'Mean CT value across triplicates'</span>)<span class="sc">+</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ylab</span>(<span class="st">'Standard deviation of CT values'</span>)<span class="sc">+</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">color=</span><span class="st">'CT=40'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>`geom_smooth()` using method = 'gam' and formula = 'y ~ s(x, bs = "cs")'</code></pre>
 </div>
@@ -199,38 +243,38 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="prep-data" class="level3">
 <h3 class="anchored" data-anchor-id="prep-data">prep data</h3>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># make summaries by sample, visit and baseline values</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>pcr_chagas <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID, VISIT, MBREFID) <span class="sc">%&gt;%</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_PCRs_sample =</span> <span class="fu">length</span>(CT),</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_pos_sample =</span> <span class="fu">sum</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID,VISIT) <span class="sc">%&gt;%</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">PCR_number =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(CT)) <span class="sc">%&gt;%</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span>(STUDYID<span class="sc">==</span><span class="st">'E1224'</span> <span class="sc">&amp;</span> PCR_number<span class="sc">&gt;</span><span class="dv">4</span> <span class="sc">&amp;</span> VISIT<span class="sc">==</span><span class="st">'Screening'</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID,VISIT) <span class="sc">%&gt;%</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">percent_pos =</span> <span class="fu">sum</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>)<span class="sc">/</span><span class="fu">length</span>(CT),</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>         <span class="at">Any_Pos_40 =</span> <span class="fu">any</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>),</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_PCRs =</span> <span class="fu">max</span>(PCR_number),</span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_pos =</span> <span class="fu">sum</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID) <span class="sc">%&gt;%</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">Percent_pos_baseline =</span> <span class="fu">unique</span>(percent_pos[VISIT<span class="sc">==</span><span class="st">'Screening'</span>]),</span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean_CT_inv_baseline =</span> <span class="dv">40</span><span class="sc">-</span><span class="fu">mean</span>(CT_mean[VISIT<span class="sc">==</span><span class="st">'Screening'</span>]),</span>
-<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_FUP_VISITS =</span> <span class="fu">length</span>(<span class="fu">unique</span>(VISIT[Day_frm_rand<span class="sc">&gt;</span>EOT]))) <span class="sc">%&gt;%</span></span>
-<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span></span>
-<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(PCR_number<span class="sc">&lt;=</span><span class="dv">9</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,</span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>          ID, VISIT_numeric, MBREFID, MBGRPID)</span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>dat_summary <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID, <span class="at">.keep_all =</span> T)</span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(dat_summary<span class="sc">$</span>STUDYID)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># make summaries by sample, visit and baseline values</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>pcr_chagas <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID, VISIT, MBREFID) <span class="sc">%&gt;%</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_PCRs_sample =</span> <span class="fu">length</span>(CT),</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_pos_sample =</span> <span class="fu">sum</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID,VISIT) <span class="sc">%&gt;%</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">PCR_number =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(CT)) <span class="sc">%&gt;%</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span>(STUDYID<span class="sc">==</span><span class="st">'E1224'</span> <span class="sc">&amp;</span> PCR_number<span class="sc">&gt;</span><span class="dv">4</span> <span class="sc">&amp;</span> VISIT<span class="sc">==</span><span class="st">'Screening'</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID,VISIT) <span class="sc">%&gt;%</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">percent_pos =</span> <span class="fu">sum</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>)<span class="sc">/</span><span class="fu">length</span>(CT),</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>         <span class="at">Any_Pos_40 =</span> <span class="fu">any</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>),</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_PCRs =</span> <span class="fu">max</span>(PCR_number),</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_pos =</span> <span class="fu">sum</span>(CT<span class="sc">&lt;</span><span class="dv">40</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID) <span class="sc">%&gt;%</span></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    <span class="at">Percent_pos_baseline =</span> <span class="fu">unique</span>(percent_pos[VISIT<span class="sc">==</span><span class="st">'Screening'</span>]),</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">Mean_CT_inv_baseline =</span> <span class="dv">40</span><span class="sc">-</span><span class="fu">mean</span>(CT_mean[VISIT<span class="sc">==</span><span class="st">'Screening'</span>]),</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_FUP_VISITS =</span> <span class="fu">length</span>(<span class="fu">unique</span>(VISIT[Day_frm_rand<span class="sc">&gt;</span>EOT]))) <span class="sc">%&gt;%</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(PCR_number<span class="sc">&lt;=</span><span class="dv">9</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>          ID, VISIT_numeric, MBREFID, MBGRPID)</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>dat_summary <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID, <span class="at">.keep_all =</span> T)</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(dat_summary<span class="sc">$</span>STUDYID)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
 BENDITA   E1224   FEX12 
     210     231      44 </code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(dat_summary<span class="sc">$</span>ARM,dat_summary<span class="sc">$</span>STUDYID)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(dat_summary<span class="sc">$</span>ARM,dat_summary<span class="sc">$</span>STUDYID)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>                               
                                 BENDITA E1224 FEX12
@@ -248,7 +292,7 @@ BENDITA   E1224   FEX12
   FEX 600MG 3D + 1200MG 4D            0     0    15
   PLACEBO                            30    47     0</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(dat_summary<span class="sc">$</span>N_FUP_VISITS)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(dat_summary<span class="sc">$</span>N_FUP_VISITS)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>
   0   1   2   3   4   5   6   7   8   9  10  11 
@@ -256,26 +300,26 @@ BENDITA   E1224   FEX12
 </div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>my_breaks <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">10</span>, <span class="dv">34</span>, <span class="dv">36</span>, <span class="dv">38</span>, <span class="fl">39.99999</span>,<span class="dv">40</span>)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>my_breaks_legend <span class="ot">=</span> <span class="fu">c</span>(<span class="st">'&lt;34'</span>,<span class="st">'34-36'</span>,<span class="st">'36-38'</span>,<span class="st">'38-40'</span>,<span class="st">'&gt;=40'</span>)</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>my_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="fu">brewer.pal</span>(<span class="dv">4</span>, <span class="st">'RdYlBu'</span>),<span class="fu">brewer.pal</span>(<span class="dv">9</span>, <span class="st">'Pastel1'</span>)[<span class="dv">9</span>])</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(ss <span class="cf">in</span> <span class="fu">unique</span>(pcr_chagas<span class="sc">$</span>STUDYID)){</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> <span class="fu">filter</span>(STUDYID<span class="sc">==</span>ss)</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>                            <span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">8</span>,<span class="dv">1</span>,<span class="dv">8</span>))</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>  xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>  ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>                  <span class="at">my_breaks =</span> my_breaks, </span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>                  <span class="at">my_break_legend =</span> my_breaks_legend,</span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>                  <span class="at">my_cols =</span> my_cols,</span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>                  <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
-<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>                  <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
-<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>                  <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span>
-<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>my_breaks <span class="ot">=</span> <span class="fu">c</span>(<span class="dv">10</span>, <span class="dv">34</span>, <span class="dv">36</span>, <span class="dv">38</span>, <span class="fl">39.99999</span>,<span class="dv">40</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>my_breaks_legend <span class="ot">=</span> <span class="fu">c</span>(<span class="st">'&lt;34'</span>,<span class="st">'34-36'</span>,<span class="st">'36-38'</span>,<span class="st">'38-40'</span>,<span class="st">'&gt;=40'</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>my_cols <span class="ot">=</span> <span class="fu">c</span>(<span class="fu">brewer.pal</span>(<span class="dv">4</span>, <span class="st">'RdYlBu'</span>),<span class="fu">brewer.pal</span>(<span class="dv">9</span>, <span class="st">'Pastel1'</span>)[<span class="dv">9</span>])</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(ss <span class="cf">in</span> <span class="fu">unique</span>(pcr_chagas<span class="sc">$</span>STUDYID)){</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> <span class="fu">filter</span>(STUDYID<span class="sc">==</span>ss)</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>  pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>                            <span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">8</span>,<span class="dv">1</span>,<span class="dv">8</span>))</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>  xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>  ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>                  <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>                  <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>                  <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>                  <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a>                  <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb22-19"><a href="#cb22-19" aria-hidden="true" tabindex="-1"></a>                  <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span>
+<span id="cb22-20"><a href="#cb22-20" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -300,24 +344,24 @@ BENDITA   E1224   FEX12
 </div>
 <p>placebo individuals in E1224 and BENDITA studies</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>visits_overlap <span class="ot">=</span> <span class="fu">intersect</span>(<span class="fu">unique</span>(pcr_chagas<span class="sc">$</span>VISIT_numeric[pcr_chagas<span class="sc">$</span>STUDYID<span class="sc">==</span><span class="st">'BENDITA'</span>]),</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>                           <span class="fu">unique</span>(pcr_chagas<span class="sc">$</span>VISIT_numeric[pcr_chagas<span class="sc">$</span>STUDYID<span class="sc">==</span><span class="st">'E1224'</span>]))</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>                </span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ARM <span class="sc">==</span> <span class="st">'PLACEBO'</span>,</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>         VISIT_numeric <span class="sc">%in%</span> visits_overlap)</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">5</span>,<span class="dv">10</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>STUDYID))</span>
-<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
-<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
-<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
-<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
-<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>,<span class="st">'E1224'</span>),</span>
-<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
-<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>visits_overlap <span class="ot">=</span> <span class="fu">intersect</span>(<span class="fu">unique</span>(pcr_chagas<span class="sc">$</span>VISIT_numeric[pcr_chagas<span class="sc">$</span>STUDYID<span class="sc">==</span><span class="st">'BENDITA'</span>]),</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>                           <span class="fu">unique</span>(pcr_chagas<span class="sc">$</span>VISIT_numeric[pcr_chagas<span class="sc">$</span>STUDYID<span class="sc">==</span><span class="st">'E1224'</span>]))</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ARM <span class="sc">==</span> <span class="st">'PLACEBO'</span>,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>         VISIT_numeric <span class="sc">%in%</span> visits_overlap)</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">5</span>,<span class="dv">10</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>STUDYID))</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>,<span class="st">'E1224'</span>),</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -328,22 +372,22 @@ BENDITA   E1224   FEX12
 </div>
 <p>two versus eight weeks</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>),</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BNZ 300MG 2W'</span>,</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'BNZ 300MG 8W'</span>))</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">4</span>,<span class="dv">7</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
-<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">c</span>(<span class="st">'BNZ 2 weeks'</span>,<span class="st">'BNZ 8 weeks'</span>),</span>
-<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
-<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>),</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BNZ 300MG 2W'</span>,</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'BNZ 300MG 8W'</span>))</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">4</span>,<span class="dv">7</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">c</span>(<span class="st">'BNZ 2 weeks'</span>,<span class="st">'BNZ 8 weeks'</span>),</span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -354,23 +398,23 @@ BENDITA   E1224   FEX12
 </div>
 <p>Weekly benznidazole works really well!</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"BNZ 300MG/WK + E1224 300MG 8W"</span>,</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"E1224 200MG 8W"</span>,</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"E1224 400MG 8W"</span>),</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>         VISIT_numeric <span class="sc">%in%</span> visits_overlap)</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
-<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">5</span>,<span class="dv">8</span>,<span class="fl">0.5</span>,<span class="dv">6</span>))</span>
-<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
-<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
-<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
-<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
-<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"BNZ 300MG/WK + E1224 300MG 8W"</span>,</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"E1224 200MG 8W"</span>,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>                    <span class="st">"E1224 400MG 8W"</span>),</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>         VISIT_numeric <span class="sc">%in%</span> visits_overlap)</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">5</span>,<span class="dv">8</span>,<span class="fl">0.5</span>,<span class="dv">6</span>))</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -380,22 +424,47 @@ BENDITA   E1224   FEX12
 </div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>),</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'PLACEBO'</span>,</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'BNZ 300MG 4W'</span>))</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">7</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
-<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
-<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
-<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
-<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
-<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
-<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
-<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ID),</span>
-<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
-<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(pcr_mat),<span class="at">cex_y_lab =</span> .<span class="dv">7</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>),</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BNZ 150MG 4W'</span>))</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">7</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ID),</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(pcr_mat),<span class="at">cex_y_lab =</span> .<span class="dv">7</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="meta-analysis_files/figure-html/bnz_150_4wks-1.png" class="img-fluid figure-img" width="3600"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># View(dat_summary %&gt;% filter(ID %in% c('BENDITA_466','BENDITA_594')))</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'BENDITA'</span>),</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'PLACEBO'</span>,</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'BNZ 300MG 4W'</span>))</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">7</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ID),</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(pcr_mat),<span class="at">cex_y_lab =</span> .<span class="dv">7</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -403,30 +472,30 @@ BENDITA   E1224   FEX12
 </figure>
 </div>
 </div>
-<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># View(dat_summary %&gt;% filter(ID %in% c('BENDITA_466','BENDITA_594')))</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># View(dat_summary %&gt;% filter(ID %in% c('BENDITA_466','BENDITA_594')))</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>visits_comp <span class="ot">=</span> <span class="fu">c</span>(<span class="st">'Screening'</span>,<span class="st">'D35'</span>,<span class="st">'D63'</span>,<span class="st">'D120'</span>,<span class="st">'D180'</span>,<span class="st">'D360'</span>)</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'FEX12'</span>, <span class="st">'E1224'</span>),</span>
-<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'E1224 400MG 8W'</span>,</span>
-<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'FEX 1200MG 3D'</span>,</span>
-<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'FEX 600MG 3D + 1200MG 4D'</span>,</span>
-<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'FEX 600MG 10D'</span>),</span>
-<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>         VISIT_trans <span class="sc">%in%</span> visits_comp,</span>
-<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>         N_FUP_VISITS<span class="sc">&gt;</span><span class="dv">1</span>)</span>
-<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
-<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">4</span>,<span class="dv">2</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
-<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
-<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
-<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
-<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
-<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
-<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
-<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
-<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
-<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>visits_comp <span class="ot">=</span> <span class="fu">c</span>(<span class="st">'Screening'</span>,<span class="st">'D35'</span>,<span class="st">'D63'</span>,<span class="st">'D120'</span>,<span class="st">'D180'</span>,<span class="st">'D360'</span>)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss<span class="ot">=</span>pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(STUDYID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'FEX12'</span>, <span class="st">'E1224'</span>),</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>         ARM <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'E1224 400MG 8W'</span>,</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'FEX 1200MG 3D'</span>,</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'FEX 600MG 3D + 1200MG 4D'</span>,</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>                    <span class="st">'FEX 600MG 10D'</span>),</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>         VISIT_trans <span class="sc">%in%</span> visits_comp,</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>         N_FUP_VISITS<span class="sc">&gt;</span><span class="dv">1</span>)</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">4</span>,<span class="dv">2</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -440,35 +509,35 @@ BENDITA   E1224   FEX12
 <section id="quantitative-analysis" class="level2">
 <h2 class="anchored" data-anchor-id="quantitative-analysis">Quantitative analysis</h2>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>strong_fail <span class="ot">=</span> <span class="dv">38</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>summary_outcomes <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(CT), Day_frm_rand<span class="sc">&gt;</span>EOT) <span class="sc">%&gt;%</span></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID, VISIT) <span class="sc">%&gt;%</span></span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">N_PCRs =</span> <span class="fu">length</span>(CT),</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_pos =</span> <span class="fu">sum</span>(CT <span class="sc">&lt;</span> <span class="dv">40</span>),</span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_weak_pos =</span> <span class="fu">sum</span>(CT<span class="sc">&gt;</span>strong_fail <span class="sc">&amp;</span> CT<span class="sc">&lt;</span><span class="dv">40</span>),</span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>         <span class="at">Borderline_pos =</span> (N_pos<span class="sc">==</span><span class="dv">1</span> <span class="sc">&amp;</span> N_weak_pos<span class="sc">==</span><span class="dv">1</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(ID, VISIT, <span class="at">.keep_all =</span> T) <span class="sc">%&gt;%</span></span>
-<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID) <span class="sc">%&gt;%</span></span>
-<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
-<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_fup_visits =</span> <span class="fu">length</span>(N_PCRs),</span>
-<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_fup_pcrs =</span> <span class="fu">sum</span>(N_PCRs),</span>
-<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_pos_tot =</span> <span class="fu">sum</span>(N_pos),</span>
-<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_weak_pos_tot =</span> <span class="fu">sum</span>(N_weak_pos)) <span class="sc">%&gt;%</span></span>
-<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(ID, <span class="at">.keep_all =</span> T) <span class="sc">%&gt;%</span></span>
-<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(N_fup_visits<span class="sc">&gt;</span><span class="dv">1</span>)</span>
-<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>xx<span class="ot">=</span>summary_outcomes <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(ARM) <span class="sc">%&gt;%</span></span>
-<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">N =</span> <span class="fu">length</span>(N_pos_tot),</span>
-<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">FUP Visits</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">median</span>(N_fup_visits),</span>
-<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">Fail =</span> <span class="fu">sum</span>(N_pos_tot<span class="sc">&gt;</span><span class="dv">0</span>),</span>
-<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Weak Fail</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">sum</span>(N_weak_pos_tot<span class="sc">==</span><span class="dv">1</span> <span class="sc">&amp;</span> N_pos_tot<span class="sc">==</span><span class="dv">1</span>),</span>
-<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Strong Fail</span><span class="st">`</span> <span class="ot">=</span> Fail<span class="sc">-</span> <span class="st">`</span><span class="at">Weak Fail</span><span class="st">`</span>,</span>
-<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Percent Fail</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">round</span>(<span class="dv">100</span><span class="sc">*</span>Fail<span class="sc">/</span>N),</span>
-<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Percent Strong Fail</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">round</span>(<span class="dv">100</span><span class="sc">*</span><span class="st">`</span><span class="at">Strong Fail</span><span class="st">`</span><span class="sc">/</span>N)</span>
-<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(<span class="st">`</span><span class="at">Percent Strong Fail</span><span class="st">`</span>)</span>
-<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>xx</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>strong_fail <span class="ot">=</span> <span class="dv">38</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>summary_outcomes <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(CT), Day_frm_rand<span class="sc">&gt;</span>EOT) <span class="sc">%&gt;%</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID, VISIT) <span class="sc">%&gt;%</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">N_PCRs =</span> <span class="fu">length</span>(CT),</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_pos =</span> <span class="fu">sum</span>(CT <span class="sc">&lt;</span> <span class="dv">40</span>),</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">N_weak_pos =</span> <span class="fu">sum</span>(CT<span class="sc">&gt;</span>strong_fail <span class="sc">&amp;</span> CT<span class="sc">&lt;</span><span class="dv">40</span>),</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>         <span class="at">Borderline_pos =</span> (N_pos<span class="sc">==</span><span class="dv">1</span> <span class="sc">&amp;</span> N_weak_pos<span class="sc">==</span><span class="dv">1</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(ID, VISIT, <span class="at">.keep_all =</span> T) <span class="sc">%&gt;%</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(ID) <span class="sc">%&gt;%</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_fup_visits =</span> <span class="fu">length</span>(N_PCRs),</span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_fup_pcrs =</span> <span class="fu">sum</span>(N_PCRs),</span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_pos_tot =</span> <span class="fu">sum</span>(N_pos),</span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_weak_pos_tot =</span> <span class="fu">sum</span>(N_weak_pos)) <span class="sc">%&gt;%</span></span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(ID, <span class="at">.keep_all =</span> T) <span class="sc">%&gt;%</span></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(N_fup_visits<span class="sc">&gt;</span><span class="dv">1</span>)</span>
+<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>xx<span class="ot">=</span>summary_outcomes <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(ARM) <span class="sc">%&gt;%</span></span>
+<span id="cb31-20"><a href="#cb31-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb31-21"><a href="#cb31-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">N =</span> <span class="fu">length</span>(N_pos_tot),</span>
+<span id="cb31-22"><a href="#cb31-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">FUP Visits</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">median</span>(N_fup_visits),</span>
+<span id="cb31-23"><a href="#cb31-23" aria-hidden="true" tabindex="-1"></a>    <span class="at">Fail =</span> <span class="fu">sum</span>(N_pos_tot<span class="sc">&gt;</span><span class="dv">0</span>),</span>
+<span id="cb31-24"><a href="#cb31-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Weak Fail</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">sum</span>(N_weak_pos_tot<span class="sc">==</span><span class="dv">1</span> <span class="sc">&amp;</span> N_pos_tot<span class="sc">==</span><span class="dv">1</span>),</span>
+<span id="cb31-25"><a href="#cb31-25" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Strong Fail</span><span class="st">`</span> <span class="ot">=</span> Fail<span class="sc">-</span> <span class="st">`</span><span class="at">Weak Fail</span><span class="st">`</span>,</span>
+<span id="cb31-26"><a href="#cb31-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Percent Fail</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">round</span>(<span class="dv">100</span><span class="sc">*</span>Fail<span class="sc">/</span>N),</span>
+<span id="cb31-27"><a href="#cb31-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">Percent Strong Fail</span><span class="st">`</span> <span class="ot">=</span> <span class="fu">round</span>(<span class="dv">100</span><span class="sc">*</span><span class="st">`</span><span class="at">Strong Fail</span><span class="st">`</span><span class="sc">/</span>N)</span>
+<span id="cb31-28"><a href="#cb31-28" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> <span class="fu">arrange</span>(<span class="st">`</span><span class="at">Percent Strong Fail</span><span class="st">`</span>)</span>
+<span id="cb31-29"><a href="#cb31-29" aria-hidden="true" tabindex="-1"></a>xx</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code># A tibble: 13 × 8
    ARM             N `FUP Visits`  Fail `Weak Fail` `Strong Fail` `Percent Fail`
@@ -488,23 +557,23 @@ BENDITA   E1224   FEX12
 13 PLACEBO        77            7    74           1            73             96
 # ℹ 1 more variable: `Percent Strong Fail` &lt;dbl&gt;</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">require</span>(DescTools)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">require</span>(DescTools)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stderr">
 <pre><code>Loading required package: DescTools</code></pre>
 </div>
-<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">1</span>,<span class="dv">1</span>),<span class="at">las=</span><span class="dv">1</span>, <span class="at">cex.axis=</span><span class="fl">1.3</span>, <span class="at">cex.lab=</span><span class="fl">1.3</span>)</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx), xx<span class="sc">$</span><span class="st">`</span><span class="at">Percent Fail</span><span class="st">`</span>, <span class="at">ylim=</span><span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">100</span>),<span class="at">panel.first =</span> <span class="fu">grid</span>(),</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>     <span class="at">xaxt=</span><span class="st">'n'</span>, <span class="at">xlab=</span><span class="st">''</span>, <span class="at">ylab=</span><span class="st">'Failure (%)'</span>,<span class="at">pch=</span><span class="dv">15</span>)</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx)){</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>  out<span class="ot">=</span><span class="dv">100</span><span class="sc">*</span><span class="fu">BinomCI</span>(<span class="at">x =</span> xx<span class="sc">$</span>Fail[i], <span class="at">n =</span> xx<span class="sc">$</span>N[i],<span class="at">method =</span> <span class="st">'jeffreys'</span>)</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lines</span>(<span class="fu">rep</span>(i,<span class="dv">2</span>), out[<span class="dv">2</span><span class="sc">:</span><span class="dv">3</span>])</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>  out<span class="ot">=</span><span class="dv">100</span><span class="sc">*</span><span class="fu">BinomCI</span>(<span class="at">x =</span> xx<span class="sc">$</span><span class="st">`</span><span class="at">Strong Fail</span><span class="st">`</span>[i], <span class="at">n =</span> xx<span class="sc">$</span>N[i],<span class="at">method =</span> <span class="st">'jeffreys'</span>)</span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lines</span>(<span class="fu">rep</span>(i,<span class="dv">2</span>)<span class="sc">+</span>.<span class="dv">2</span>, out[<span class="dv">2</span><span class="sc">:</span><span class="dv">3</span>],<span class="at">col=</span><span class="st">'red'</span>)</span>
-<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="fu">axis</span>(<span class="dv">1</span>, <span class="at">at=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx), <span class="at">labels =</span> <span class="fu">gsub</span>(<span class="at">pattern =</span> <span class="st">'+'</span>,<span class="at">replacement =</span> <span class="st">'</span><span class="sc">\n</span><span class="st">+'</span>,<span class="at">x =</span> xx<span class="sc">$</span>ARM,<span class="at">fixed =</span> T),</span>
-<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>     <span class="at">las=</span><span class="dv">2</span>,<span class="at">cex.axis=</span><span class="dv">1</span>)</span>
-<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="fu">points</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx)<span class="sc">+</span>.<span class="dv">2</span>, xx<span class="sc">$</span><span class="st">`</span><span class="at">Percent Strong Fail</span><span class="st">`</span>,<span class="at">col=</span><span class="st">'red'</span>,<span class="at">pch=</span><span class="dv">16</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">1</span>,<span class="dv">1</span>),<span class="at">las=</span><span class="dv">1</span>, <span class="at">cex.axis=</span><span class="fl">1.3</span>, <span class="at">cex.lab=</span><span class="fl">1.3</span>)</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="fu">plot</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx), xx<span class="sc">$</span><span class="st">`</span><span class="at">Percent Fail</span><span class="st">`</span>, <span class="at">ylim=</span><span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">100</span>),<span class="at">panel.first =</span> <span class="fu">grid</span>(),</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>     <span class="at">xaxt=</span><span class="st">'n'</span>, <span class="at">xlab=</span><span class="st">''</span>, <span class="at">ylab=</span><span class="st">'Failure (%)'</span>,<span class="at">pch=</span><span class="dv">15</span>)</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx)){</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>  out<span class="ot">=</span><span class="dv">100</span><span class="sc">*</span><span class="fu">BinomCI</span>(<span class="at">x =</span> xx<span class="sc">$</span>Fail[i], <span class="at">n =</span> xx<span class="sc">$</span>N[i],<span class="at">method =</span> <span class="st">'jeffreys'</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lines</span>(<span class="fu">rep</span>(i,<span class="dv">2</span>), out[<span class="dv">2</span><span class="sc">:</span><span class="dv">3</span>])</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>  out<span class="ot">=</span><span class="dv">100</span><span class="sc">*</span><span class="fu">BinomCI</span>(<span class="at">x =</span> xx<span class="sc">$</span><span class="st">`</span><span class="at">Strong Fail</span><span class="st">`</span>[i], <span class="at">n =</span> xx<span class="sc">$</span>N[i],<span class="at">method =</span> <span class="st">'jeffreys'</span>)</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">lines</span>(<span class="fu">rep</span>(i,<span class="dv">2</span>)<span class="sc">+</span>.<span class="dv">2</span>, out[<span class="dv">2</span><span class="sc">:</span><span class="dv">3</span>],<span class="at">col=</span><span class="st">'red'</span>)</span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a><span class="fu">axis</span>(<span class="dv">1</span>, <span class="at">at=</span><span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx), <span class="at">labels =</span> <span class="fu">gsub</span>(<span class="at">pattern =</span> <span class="st">'+'</span>,<span class="at">replacement =</span> <span class="st">'</span><span class="sc">\n</span><span class="st">+'</span>,<span class="at">x =</span> xx<span class="sc">$</span>ARM,<span class="at">fixed =</span> T),</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>     <span class="at">las=</span><span class="dv">2</span>,<span class="at">cex.axis=</span><span class="dv">1</span>)</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="fu">points</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(xx)<span class="sc">+</span>.<span class="dv">2</span>, xx<span class="sc">$</span><span class="st">`</span><span class="at">Percent Strong Fail</span><span class="st">`</span>,<span class="at">col=</span><span class="st">'red'</span>,<span class="at">pch=</span><span class="dv">16</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
@@ -513,6 +582,286 @@ BENDITA   E1224   FEX12
 </div>
 </div>
 </div>
+<section id="stan-model-of-cure" class="level3">
+<h3 class="anchored" data-anchor-id="stan-model-of-cure">stan model of cure</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>file <span class="ot">&lt;-</span> <span class="fu">file.path</span>(<span class="st">"chagas_efficacy_model_v2.stan"</span>)</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>mod <span class="ot">&lt;-</span> <span class="fu">cmdstan_model</span>(file)</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>pcr_chagas_ss <span class="ot">=</span> pcr_chagas <span class="sc">%&gt;%</span> </span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(N_pos_sample), </span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>         <span class="sc">!</span><span class="fu">is.na</span>(N_PCRs_sample), </span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>         Day_frm_rand<span class="sc">&gt;</span>EOT,</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>         STUDYID<span class="sc">==</span><span class="st">'BENDITA'</span>,</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>         <span class="sc">!</span>USUBJID <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">'594'</span>,<span class="st">'681'</span>,<span class="st">'342'</span>)) </span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>pcr_mat <span class="ot">=</span> <span class="fu">make_matrix_pcr</span>(<span class="at">pcr_dat =</span> pcr_chagas_ss,<span class="at">N_max_PCR =</span> <span class="dv">9</span>)</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mar=</span><span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">7</span>,<span class="fl">0.5</span>,<span class="fl">0.5</span>))</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>xx2 <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span> ungroup <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID,<span class="at">.keep_all =</span> T)</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a>ind_y <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(xx2<span class="sc">$</span>ARM))</span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a><span class="fu">plot_pcr_matrix</span>(<span class="at">pcr_mat =</span> pcr_mat,</span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_breaks =</span> my_breaks, </span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_break_legend =</span> my_breaks_legend,</span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>                <span class="at">my_cols =</span> my_cols,</span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>                <span class="at">arm_labels =</span> <span class="fu">unique</span>(pcr_chagas_ss<span class="sc">$</span>ARM),</span>
+<span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a>                <span class="at">h_lines_ind =</span> ind_y[<span class="sc">-</span><span class="dv">1</span>]<span class="sc">-</span><span class="fl">0.5</span>,</span>
+<span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a>                <span class="at">y_lab_ind =</span> ind_y <span class="sc">+</span> <span class="fu">diff</span>(<span class="fu">c</span>(ind_y, <span class="fu">nrow</span>(pcr_mat)<span class="sc">+</span><span class="dv">1</span>))<span class="sc">/</span><span class="dv">2</span>,</span>
+<span id="cb36-22"><a href="#cb36-22" aria-hidden="true" tabindex="-1"></a>                <span class="at">cex_y_lab =</span> .<span class="dv">7</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="meta-analysis_files/figure-html/stan_model-1.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>pcr_summary <span class="ot">=</span> pcr_chagas_ss <span class="sc">%&gt;%</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">distinct</span>(ID, Day_frm_rand, MBREFID, <span class="at">.keep_all =</span> T) <span class="sc">%&gt;%</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">ID_numeric =</span> <span class="fu">as.numeric</span>(<span class="fu">as.factor</span>(ID)),</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">ARM_numeric =</span> <span class="fu">as.numeric</span>(<span class="fu">as.factor</span>(ARM))) <span class="sc">%&gt;%</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(ID) <span class="sc">%&gt;%</span> <span class="fu">group_by</span>(ID) <span class="sc">%&gt;%</span></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">N_fup_samples =</span> <span class="fu">length</span>(N_PCRs_sample)</span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>pcr_unique <span class="ot">=</span> pcr_summary <span class="sc">%&gt;%</span> <span class="fu">distinct</span>(ID, <span class="at">.keep_all =</span> T)</span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(pcr_unique<span class="sc">$</span>N_fup_samples, pcr_unique<span class="sc">$</span>ARM)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>    
+     BNZ 150MG 4W BNZ 150MG 4W + E1224 300MG 8W BNZ 300MG 2W BNZ 300MG 4W
+  9             0                             1            1            0
+  12            0                             0            0            1
+  14            0                             0            0            0
+  15            0                            27            0            0
+  18           28                             0            1           27
+  20            0                             0            1            0
+  21            0                             0           27            0
+  29            0                             0            0            0
+  30            0                             0            0            0
+  33            0                             0            0            0
+    
+     BNZ 300MG 8W BNZ 300MG/WK + E1224 300MG 8W PLACEBO
+  9             0                             1       0
+  12            1                             0       0
+  14            0                             1       0
+  15           28                            28       0
+  18            0                             0       0
+  20            0                             0       0
+  21            0                             0       0
+  29            0                             0       1
+  30            0                             0      25
+  33            0                             0       4</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>ind_not_dup <span class="ot">=</span> <span class="fu">which</span>(<span class="sc">!</span><span class="fu">duplicated</span>(pcr_summary<span class="sc">$</span>ID))</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>data_list_stan <span class="ot">=</span> <span class="fu">list</span>(<span class="at">n_id =</span> <span class="fu">length</span>(<span class="fu">unique</span>(pcr_summary<span class="sc">$</span>ID)), </span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>                      <span class="at">n_samples =</span> <span class="fu">nrow</span>(pcr_summary),</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>                      <span class="at">Kmax =</span> <span class="fu">max</span>(pcr_summary<span class="sc">$</span>N_PCRs_sample),</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>                      <span class="at">K_arms =</span> <span class="fu">length</span>(<span class="fu">unique</span>(pcr_summary<span class="sc">$</span>ARM)),</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>                      <span class="at">trt_group =</span> pcr_summary<span class="sc">$</span>ARM_numeric[ind_not_dup],</span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>                      <span class="at">y_pos =</span> pcr_summary<span class="sc">$</span>N_pos_sample,</span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>                      <span class="at">K_FUP =</span> pcr_summary<span class="sc">$</span>N_PCRs_sample,</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>                      <span class="at">ind_start =</span> ind_not_dup,</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>                      <span class="at">ind_end =</span> <span class="fu">c</span>((ind_not_dup<span class="dv">-1</span>)[<span class="sc">-</span><span class="dv">1</span>], <span class="fu">nrow</span>(pcr_summary)),</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>                      <span class="at">PCR_specificity=</span><span class="dv">1</span>)</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true" tabindex="-1"></a>fit <span class="ot">&lt;-</span> mod<span class="sc">$</span><span class="fu">sample</span>(</span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> data_list_stan,</span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">seed =</span> <span class="dv">123</span>,</span>
+<span id="cb39-16"><a href="#cb39-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">chains =</span> <span class="dv">4</span>,</span>
+<span id="cb39-17"><a href="#cb39-17" aria-hidden="true" tabindex="-1"></a>  <span class="at">parallel_chains =</span> <span class="dv">4</span>,<span class="at">iter_sampling =</span> <span class="dv">2000</span>,</span>
+<span id="cb39-18"><a href="#cb39-18" aria-hidden="true" tabindex="-1"></a>  <span class="at">refresh =</span> <span class="dv">100</span> <span class="co"># print update every 500 iters</span></span>
+<span id="cb39-19"><a href="#cb39-19" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Running MCMC with 4 parallel chains...
+
+Chain 1 Iteration:    1 / 3000 [  0%]  (Warmup) 
+Chain 2 Iteration:    1 / 3000 [  0%]  (Warmup) 
+Chain 3 Iteration:    1 / 3000 [  0%]  (Warmup) 
+Chain 4 Iteration:    1 / 3000 [  0%]  (Warmup) 
+Chain 1 Iteration:  100 / 3000 [  3%]  (Warmup) 
+Chain 2 Iteration:  100 / 3000 [  3%]  (Warmup) 
+Chain 3 Iteration:  100 / 3000 [  3%]  (Warmup) 
+Chain 1 Iteration:  200 / 3000 [  6%]  (Warmup) 
+Chain 2 Iteration:  200 / 3000 [  6%]  (Warmup) 
+Chain 4 Iteration:  100 / 3000 [  3%]  (Warmup) 
+Chain 3 Iteration:  200 / 3000 [  6%]  (Warmup) 
+Chain 1 Iteration:  300 / 3000 [ 10%]  (Warmup) 
+Chain 2 Iteration:  300 / 3000 [ 10%]  (Warmup) 
+Chain 3 Iteration:  300 / 3000 [ 10%]  (Warmup) 
+Chain 4 Iteration:  200 / 3000 [  6%]  (Warmup) 
+Chain 1 Iteration:  400 / 3000 [ 13%]  (Warmup) 
+Chain 2 Iteration:  400 / 3000 [ 13%]  (Warmup) 
+Chain 3 Iteration:  400 / 3000 [ 13%]  (Warmup) 
+Chain 4 Iteration:  300 / 3000 [ 10%]  (Warmup) 
+Chain 1 Iteration:  500 / 3000 [ 16%]  (Warmup) 
+Chain 2 Iteration:  500 / 3000 [ 16%]  (Warmup) 
+Chain 4 Iteration:  400 / 3000 [ 13%]  (Warmup) 
+Chain 3 Iteration:  500 / 3000 [ 16%]  (Warmup) 
+Chain 1 Iteration:  600 / 3000 [ 20%]  (Warmup) 
+Chain 2 Iteration:  600 / 3000 [ 20%]  (Warmup) 
+Chain 4 Iteration:  500 / 3000 [ 16%]  (Warmup) 
+Chain 1 Iteration:  700 / 3000 [ 23%]  (Warmup) 
+Chain 2 Iteration:  700 / 3000 [ 23%]  (Warmup) 
+Chain 3 Iteration:  600 / 3000 [ 20%]  (Warmup) 
+Chain 4 Iteration:  600 / 3000 [ 20%]  (Warmup) 
+Chain 1 Iteration:  800 / 3000 [ 26%]  (Warmup) 
+Chain 2 Iteration:  800 / 3000 [ 26%]  (Warmup) 
+Chain 4 Iteration:  700 / 3000 [ 23%]  (Warmup) 
+Chain 2 Iteration:  900 / 3000 [ 30%]  (Warmup) 
+Chain 3 Iteration:  700 / 3000 [ 23%]  (Warmup) 
+Chain 1 Iteration:  900 / 3000 [ 30%]  (Warmup) 
+Chain 4 Iteration:  800 / 3000 [ 26%]  (Warmup) 
+Chain 2 Iteration: 1000 / 3000 [ 33%]  (Warmup) 
+Chain 2 Iteration: 1001 / 3000 [ 33%]  (Sampling) 
+Chain 3 Iteration:  800 / 3000 [ 26%]  (Warmup) 
+Chain 1 Iteration: 1000 / 3000 [ 33%]  (Warmup) 
+Chain 1 Iteration: 1001 / 3000 [ 33%]  (Sampling) 
+Chain 4 Iteration:  900 / 3000 [ 30%]  (Warmup) 
+Chain 2 Iteration: 1100 / 3000 [ 36%]  (Sampling) 
+Chain 1 Iteration: 1100 / 3000 [ 36%]  (Sampling) 
+Chain 3 Iteration:  900 / 3000 [ 30%]  (Warmup) 
+Chain 4 Iteration: 1000 / 3000 [ 33%]  (Warmup) 
+Chain 4 Iteration: 1001 / 3000 [ 33%]  (Sampling) 
+Chain 2 Iteration: 1200 / 3000 [ 40%]  (Sampling) 
+Chain 1 Iteration: 1200 / 3000 [ 40%]  (Sampling) 
+Chain 2 Iteration: 1300 / 3000 [ 43%]  (Sampling) 
+Chain 3 Iteration: 1000 / 3000 [ 33%]  (Warmup) 
+Chain 3 Iteration: 1001 / 3000 [ 33%]  (Sampling) 
+Chain 4 Iteration: 1100 / 3000 [ 36%]  (Sampling) 
+Chain 1 Iteration: 1300 / 3000 [ 43%]  (Sampling) 
+Chain 2 Iteration: 1400 / 3000 [ 46%]  (Sampling) 
+Chain 3 Iteration: 1100 / 3000 [ 36%]  (Sampling) 
+Chain 4 Iteration: 1200 / 3000 [ 40%]  (Sampling) 
+Chain 1 Iteration: 1400 / 3000 [ 46%]  (Sampling) 
+Chain 2 Iteration: 1500 / 3000 [ 50%]  (Sampling) 
+Chain 3 Iteration: 1200 / 3000 [ 40%]  (Sampling) 
+Chain 4 Iteration: 1300 / 3000 [ 43%]  (Sampling) 
+Chain 1 Iteration: 1500 / 3000 [ 50%]  (Sampling) 
+Chain 2 Iteration: 1600 / 3000 [ 53%]  (Sampling) 
+Chain 2 Iteration: 1700 / 3000 [ 56%]  (Sampling) 
+Chain 1 Iteration: 1600 / 3000 [ 53%]  (Sampling) 
+Chain 3 Iteration: 1300 / 3000 [ 43%]  (Sampling) 
+Chain 4 Iteration: 1400 / 3000 [ 46%]  (Sampling) 
+Chain 2 Iteration: 1800 / 3000 [ 60%]  (Sampling) 
+Chain 3 Iteration: 1400 / 3000 [ 46%]  (Sampling) 
+Chain 1 Iteration: 1700 / 3000 [ 56%]  (Sampling) 
+Chain 4 Iteration: 1500 / 3000 [ 50%]  (Sampling) 
+Chain 2 Iteration: 1900 / 3000 [ 63%]  (Sampling) 
+Chain 1 Iteration: 1800 / 3000 [ 60%]  (Sampling) 
+Chain 3 Iteration: 1500 / 3000 [ 50%]  (Sampling) 
+Chain 2 Iteration: 2000 / 3000 [ 66%]  (Sampling) 
+Chain 4 Iteration: 1600 / 3000 [ 53%]  (Sampling) 
+Chain 2 Iteration: 2100 / 3000 [ 70%]  (Sampling) 
+Chain 1 Iteration: 1900 / 3000 [ 63%]  (Sampling) 
+Chain 3 Iteration: 1600 / 3000 [ 53%]  (Sampling) 
+Chain 4 Iteration: 1700 / 3000 [ 56%]  (Sampling) 
+Chain 2 Iteration: 2200 / 3000 [ 73%]  (Sampling) 
+Chain 1 Iteration: 2000 / 3000 [ 66%]  (Sampling) 
+Chain 3 Iteration: 1700 / 3000 [ 56%]  (Sampling) 
+Chain 4 Iteration: 1800 / 3000 [ 60%]  (Sampling) 
+Chain 2 Iteration: 2300 / 3000 [ 76%]  (Sampling) 
+Chain 1 Iteration: 2100 / 3000 [ 70%]  (Sampling) 
+Chain 2 Iteration: 2400 / 3000 [ 80%]  (Sampling) 
+Chain 3 Iteration: 1800 / 3000 [ 60%]  (Sampling) 
+Chain 4 Iteration: 1900 / 3000 [ 63%]  (Sampling) 
+Chain 1 Iteration: 2200 / 3000 [ 73%]  (Sampling) 
+Chain 2 Iteration: 2500 / 3000 [ 83%]  (Sampling) 
+Chain 3 Iteration: 1900 / 3000 [ 63%]  (Sampling) 
+Chain 4 Iteration: 2000 / 3000 [ 66%]  (Sampling) 
+Chain 2 Iteration: 2600 / 3000 [ 86%]  (Sampling) 
+Chain 1 Iteration: 2300 / 3000 [ 76%]  (Sampling) 
+Chain 3 Iteration: 2000 / 3000 [ 66%]  (Sampling) 
+Chain 2 Iteration: 2700 / 3000 [ 90%]  (Sampling) 
+Chain 4 Iteration: 2100 / 3000 [ 70%]  (Sampling) 
+Chain 1 Iteration: 2400 / 3000 [ 80%]  (Sampling) 
+Chain 2 Iteration: 2800 / 3000 [ 93%]  (Sampling) 
+Chain 3 Iteration: 2100 / 3000 [ 70%]  (Sampling) 
+Chain 4 Iteration: 2200 / 3000 [ 73%]  (Sampling) 
+Chain 1 Iteration: 2500 / 3000 [ 83%]  (Sampling) 
+Chain 2 Iteration: 2900 / 3000 [ 96%]  (Sampling) 
+Chain 3 Iteration: 2200 / 3000 [ 73%]  (Sampling) 
+Chain 2 Iteration: 3000 / 3000 [100%]  (Sampling) 
+Chain 2 finished in 15.5 seconds.
+Chain 1 Iteration: 2600 / 3000 [ 86%]  (Sampling) 
+Chain 4 Iteration: 2300 / 3000 [ 76%]  (Sampling) 
+Chain 3 Iteration: 2300 / 3000 [ 76%]  (Sampling) 
+Chain 1 Iteration: 2700 / 3000 [ 90%]  (Sampling) 
+Chain 4 Iteration: 2400 / 3000 [ 80%]  (Sampling) 
+Chain 3 Iteration: 2400 / 3000 [ 80%]  (Sampling) 
+Chain 1 Iteration: 2800 / 3000 [ 93%]  (Sampling) 
+Chain 4 Iteration: 2500 / 3000 [ 83%]  (Sampling) 
+Chain 3 Iteration: 2500 / 3000 [ 83%]  (Sampling) 
+Chain 1 Iteration: 2900 / 3000 [ 96%]  (Sampling) 
+Chain 4 Iteration: 2600 / 3000 [ 86%]  (Sampling) 
+Chain 3 Iteration: 2600 / 3000 [ 86%]  (Sampling) 
+Chain 1 Iteration: 3000 / 3000 [100%]  (Sampling) 
+Chain 1 finished in 17.9 seconds.
+Chain 4 Iteration: 2700 / 3000 [ 90%]  (Sampling) 
+Chain 3 Iteration: 2700 / 3000 [ 90%]  (Sampling) 
+Chain 4 Iteration: 2800 / 3000 [ 93%]  (Sampling) 
+Chain 3 Iteration: 2800 / 3000 [ 93%]  (Sampling) 
+Chain 4 Iteration: 2900 / 3000 [ 96%]  (Sampling) 
+Chain 3 Iteration: 2900 / 3000 [ 96%]  (Sampling) 
+Chain 4 Iteration: 3000 / 3000 [100%]  (Sampling) 
+Chain 4 finished in 19.9 seconds.
+Chain 3 Iteration: 3000 / 3000 [100%]  (Sampling) 
+Chain 3 finished in 20.2 seconds.
+
+All 4 chains finished successfully.
+Mean chain execution time: 18.4 seconds.
+Total execution time: 20.4 seconds.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mcmc_trace</span>(fit<span class="sc">$</span><span class="fu">draws</span>(<span class="fu">c</span>(<span class="st">'p_1'</span>,<span class="st">'q'</span>,<span class="st">'p_2'</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="meta-analysis_files/figure-html/stan_model-2.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+<div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>gg_cure<span class="ot">=</span><span class="fu">mcmc_intervals</span>(fit<span class="sc">$</span><span class="fu">draws</span>(<span class="fu">c</span>(<span class="st">"p_1"</span>)))<span class="sc">+</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">scale_y_discrete</span>(<span class="at">labels =</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>                              <span class="fu">c</span>(<span class="st">"p_1[7]"</span> <span class="ot">=</span><span class="st">"Placebo"</span>,</span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_1[3]"</span> <span class="ot">=</span><span class="st">"BNZ 2wks"</span>,</span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_1[1]"</span> <span class="ot">=</span><span class="st">"BNZ 150 4wks"</span>,</span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_1[4]"</span> <span class="ot">=</span><span class="st">"BNZ 300 4wks"</span>,</span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_1[2]"</span> <span class="ot">=</span><span class="st">"BNZ 150 4wks + E1224"</span>,</span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_1[6]"</span> <span class="ot">=</span><span class="st">"BNZ 300 wkly + E1224"</span>,</span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_1[5]"</span> <span class="ot">=</span><span class="st">"BNZ 300 8 wks"</span>))<span class="sc">+</span></span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggtitle</span>(<span class="st">'Probability of cure'</span>)<span class="sc">+</span><span class="fu">xlim</span>(<span class="dv">0</span>,<span class="dv">1</span>)<span class="sc">+</span><span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Scale for y is already present.
+Adding another scale for y, which will replace the existing scale.
+Scale for x is already present.
+Adding another scale for x, which will replace the existing scale.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb44"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>gg_sample<span class="ot">=</span><span class="fu">mcmc_intervals</span>(fit<span class="sc">$</span><span class="fu">draws</span>(<span class="fu">c</span>(<span class="st">"p_2"</span>)))<span class="sc">+</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>  ggplot2<span class="sc">::</span><span class="fu">scale_y_discrete</span>(<span class="at">labels =</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>                              <span class="fu">c</span>(<span class="st">"p_2[7]"</span> <span class="ot">=</span><span class="st">"Placebo"</span>,</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_2[3]"</span> <span class="ot">=</span><span class="st">"BNZ 2wks"</span>,</span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_2[1]"</span> <span class="ot">=</span><span class="st">"BNZ 150 4wks"</span>,</span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_2[4]"</span> <span class="ot">=</span><span class="st">"BNZ 300 4wks"</span>,</span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_2[2]"</span> <span class="ot">=</span><span class="st">"BNZ 150 4wks + E1224"</span>,</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_2[6]"</span> <span class="ot">=</span><span class="st">"BNZ 300 wkly + E1224"</span>,</span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>                                <span class="st">"p_2[5]"</span> <span class="ot">=</span><span class="st">"BNZ 300 8 wks"</span>))<span class="sc">+</span></span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggtitle</span>(<span class="st">'Probability of sampling parasites'</span>)<span class="sc">+</span><span class="fu">xlim</span>(<span class="dv">0</span>,<span class="dv">1</span>)<span class="sc">+</span><span class="fu">theme_minimal</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Scale for y is already present.
+Adding another scale for y, which will replace the existing scale.
+Scale for x is already present.
+Adding another scale for x, which will replace the existing scale.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb46"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>pp<span class="ot">=</span><span class="fu">grid.arrange</span>(gg_cure, gg_sample,<span class="at">nrow=</span><span class="dv">2</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="meta-analysis_files/figure-html/stan_model-3.png" class="img-fluid figure-img" width="3000"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
 </section>
 
 </main>

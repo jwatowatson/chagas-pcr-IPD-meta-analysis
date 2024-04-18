@@ -7,6 +7,8 @@ library(readr)
 source('functions.R')
 
 dm_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/DM 2024-04-15.csv')
+ds_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/DS 2024-04-15.csv')
+
 in_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/IN 2024-04-15.csv')
 ts_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/TS 2024-04-15.csv')
 mb_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/MB 2024-04-15.csv')
@@ -15,7 +17,11 @@ pc_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/PC 2024-04-15.csv')
 table(dm_chagas$STUDYID)
 
 
-pcr_chagas=chagas_adam(dm_chagas = dm_chagas, in_chagas = in_chagas, mb_chagas = mb_chagas,ts_chagas = ts_chagas)
+pcr_chagas=chagas_adam(dm_chagas = dm_chagas,
+                       ds_chagas = ds_chagas,
+                       in_chagas = in_chagas, 
+                       mb_chagas = mb_chagas,
+                       ts_chagas = ts_chagas)
 table(pcr_chagas$VISIT_trans)
 table(pcr_chagas$VISIT_numeric)
 
