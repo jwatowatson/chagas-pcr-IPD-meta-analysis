@@ -6,7 +6,7 @@ editor: visual
 ---
 
 ```{r}
-knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
+knitr::opts_chunk$set(cache = F, cache.comments = FALSE,
                       echo = T, include = TRUE, 
                       fig.width = 8, fig.height = 8,
                       fig.pos = 'H',dev = 'png', dpi = 300)
@@ -18,10 +18,36 @@ source('functions.R')
 
 ```
 
+
+Theoretical considerations around sensitivity
+
+```{r theoretical_sensitivity, fig.width=10}
+library(expint)
+# probability that the max of k independent poisson draws is zero is given by the incomplete
+# gamma function
+my_lambdas = seq(from=log10(1/5000), to=log10(5000/5000),length.out=100)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
+# 15 independent draws
+plot(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^15,
+     type='l', panel.first=grid(), xaxt='n', xlab='Parasite density per ml',
+     ylab='Probability at least one draw has at least 1 parasite',lwd=3, col='darkred')
+vals = c(0.0002, 0.001, 0.01, .1, 1, 10)
+axis(1, at = log10(vals),labels = vals)
+abline(h=0.5,lty=2)
+# 5 independent draws
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^5,lty=2,lwd=3,col='darkblue')
+# single draw
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas)),lty=3,lwd=2)
+```
+
+
+
+
 ## Load data
 
 ```{r}
 load('RData/pcr_chagas.RData')
+
 # load('RData/ID_map.RData')
 # pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)
 ```
@@ -31,7 +57,8 @@ load('RData/pcr_chagas.RData')
 Triplicates
 
 ```{r heterosckedasticity, fig.height=8, fig.width=12}
-pcr_chagas = pcr_chagas %>% group_by(ID, VISIT, MBGRPID) %>%
+pcr_chagas = pcr_chagas %>% 
+  group_by(ID, VISIT, MBGRPID) %>%
   mutate(
     CT = ifelse(CT<25, NA, CT),
     repeats = sum(!is.na(CT)),
@@ -55,16 +82,41 @@ pcr_chagas_trip %>% ggplot(aes(x=CT_mean, y=CT_sd,color=as.factor(n_40)))+
 
 ```
 
-```{r pcr_plot, fig.width=15, fig.height=12}
+
+### prep data
+
+```{r}
+# make summaries by sample, visit and baseline values
 pcr_chagas = pcr_chagas %>% 
-  filter(PCR_number<=9) %>%
+  group_by(ID, VISIT, MBREFID) %>%
+  mutate(
+    N_PCRs_sample = length(CT),
+    N_pos_sample = sum(CT<40)) %>%
   group_by(ID,VISIT) %>%
-  mutate(N_pos = sum(CT<40)) %>%
+  mutate(PCR_number = 1:length(CT)) %>%
+  ungroup() %>% filter(!(STUDYID=='E1224' & PCR_number>4 & VISIT=='Screening')) %>%
+  group_by(ID,VISIT) %>%
+  mutate(percent_pos = sum(CT<40)/length(CT),
+         Any_Pos_40 = any(CT<40),
+         N_PCRs = max(PCR_number),
+         N_pos = sum(CT<40)) %>%
   group_by(ID) %>%
-  mutate(N_pos_baseline = unique(N_pos[VISIT=='Screening']),
-         Mean_CT_inv_baseline = 40-mean(CT_mean[VISIT=='Screening'])) %>%
-  arrange(ARM, N_pos_baseline, Mean_CT_inv_baseline, 
-          Day_frm_rand, USUBJID, MBREFID, MBGRPID)
+  mutate(
+    Percent_pos_baseline = unique(percent_pos[VISIT=='Screening']),
+    Mean_CT_inv_baseline = 40-mean(CT_mean[VISIT=='Screening']),
+    N_FUP_VISITS = length(unique(VISIT[Day_frm_rand>EOT]))) %>%
+  ungroup() %>%
+  filter(PCR_number<=9) %>%
+  arrange(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,
+          ID, VISIT_numeric, MBREFID, MBGRPID)
+
+dat_summary = pcr_chagas %>% distinct(ID, .keep_all = T)
+table(dat_summary$STUDYID)
+table(dat_summary$ARM,dat_summary$STUDYID)
+table(dat_summary$N_FUP_VISITS)
+```
+
+```{r pcr_plot, fig.width=15, fig.height=12}
 my_breaks = c(10, 34, 36, 38, 39.99999,40)
 my_breaks_legend = c('<34','34-36','36-38','38-40','>=40')
 my_cols = c(brewer.pal(4, 'RdYlBu'),brewer.pal(9, 'Pastel1')[9])
@@ -74,66 +126,144 @@ for(ss in unique(pcr_chagas$STUDYID)){
   pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,
                             N_max_PCR = 9)
   
-  par(mar=c(7,14,1,9))
-  
-  visit_labels = unique(pcr_chagas_ss$VISIT_trans)
-  my_labs=unique(pcr_chagas_ss$ARM)
-  my_labs=gsub(pattern = 'BENZNIDAZOLE',replacement = 'BNZ',x = my_labs)
-  my_labs=gsub(pattern = 'FOSRAVUCONAZOLE',replacement = '\nE1224',x = my_labs)
-  my_labs=gsub(pattern = 'FEXINIDAZOLE',replacement = 'fexi',x = my_labs)
-  arm_labels=gsub(pattern = ' WEEKLY',replacement = '/WK',x = my_labs)
-  
+  par(mar=c(3,8,1,8))
   xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
-  ind_y = which(!duplicated(xx2$ARM))-0.5
-  
+  ind_y = which(!duplicated(xx2$ARM))
   plot_pcr_matrix(pcr_mat = pcr_mat,
                   my_breaks = my_breaks, 
                   my_break_legend = my_breaks_legend,
                   my_cols = my_cols,
-                  visit_labels = visit_labels,
-                  arm_labels = arm_labels,ind_y = ind_y)
+                  arm_labels = unique(pcr_chagas_ss$ARM),
+                  h_lines_ind = ind_y[-1]-0.5,
+                  y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
 }
 ```
+
+
+placebo individuals in E1224 and BENDITA studies
+
+```{r placebos, fig.height=6, fig.width=12}
+visits_overlap = intersect(unique(pcr_chagas$VISIT_numeric[pcr_chagas$STUDYID=='BENDITA']),
+                           unique(pcr_chagas$VISIT_numeric[pcr_chagas$STUDYID=='E1224']))
+                
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(ARM == 'PLACEBO',
+         VISIT_numeric %in% visits_overlap)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(5,10,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$STUDYID))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = c('BENDITA','E1224'),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+```
+
 
 two versus eight weeks
 
 ```{r two_vs_eight, fig.height=6, fig.width=12}
 pcr_chagas_ss=pcr_chagas %>% 
   filter(STUDYID %in% c('BENDITA'),
-         ARM %in% c('BENZNIDAZOLE 300MG 2W',
-                    'BENZNIDAZOLE 300MG 8W'))
+         ARM %in% c('BNZ 300MG 2W',
+                    'BNZ 300MG 8W'))
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
 
-
-visit_labels = unique(pcr_chagas_ss$VISIT_trans)
-my_labs=unique(pcr_chagas_ss$ARM)
-my_labs=gsub(pattern = 'BENZNIDAZOLE',replacement = 'BNZ',x = my_labs)
-my_labs=gsub(pattern = 'FOSRAVUCONAZOLE',replacement = '\nE1224',x = my_labs)
-my_labs=gsub(pattern = 'FEXINIDAZOLE',replacement = 'fexi',x = my_labs)
-arm_labels=gsub(pattern = ' WEEKLY',replacement = '/WK',x = my_labs)
-pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,
-                          N_max_PCR = 9)
-
-par(mar=c(7,4,0.5,0.5))
+par(mar=c(4,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
 plot_pcr_matrix(pcr_mat = pcr_mat,
                 my_breaks = my_breaks, 
                 my_break_legend = my_breaks_legend,
                 my_cols = my_cols,
-                visit_labels = visit_labels,
-                arm_labels = c('2 weeks','8 weeks'),ind_y = c(.5,30.5))
+                arm_labels = c('BNZ 2 weeks','BNZ 8 weeks'),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+
 ```
 
-```{r mix_up, fig.height=5, fig.width=12}
-plot_pcr_matrix(pcr_mat = pcr_mat[paste('CGTNWOV', c('110','451'),sep = '_'),  ],
+Weekly benznidazole works really well!
+
+```{r weekly_bnz, fig.height=6, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(ARM %in% c("BNZ 300MG/WK + E1224 300MG 8W",
+                    "E1224 200MG 8W",
+                    "E1224 400MG 8W"),
+         VISIT_numeric %in% visits_overlap)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(5,8,0.5,6))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
                 my_breaks = my_breaks, 
                 my_break_legend = my_breaks_legend,
                 my_cols = my_cols,
-                visit_labels = visit_labels,
-                arm_labels = c('110','451'),ind_y = 1:2)
+                arm_labels = unique(pcr_chagas_ss$ARM),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
 ```
 
-Analysis
 
-```{r}
+
+
+
+```{r mix_up, fig.height=10, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(STUDYID %in% c('BENDITA'),
+         ARM %in% c('PLACEBO',
+                    'BNZ 300MG 4W'))
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(2,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$ID),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = 1:nrow(pcr_mat),cex_y_lab = .7)
+
+# View(dat_summary %>% filter(ID %in% c('BENDITA_466','BENDITA_594')))
+
+```
+
+
+```{r fexi_reduces_ss_biomass, fig.height=6, fig.width=12}
+visits_comp = c('Screening','D35','D63','D120','D180','D360')
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(STUDYID %in% c('FEX12', 'E1224'),
+         ARM %in% c('E1224 400MG 8W',
+                    'FEX 1200MG 3D',
+                    'FEX 600MG 3D + 1200MG 4D',
+                    'FEX 600MG 10D'),
+         VISIT_trans %in% visits_comp,
+         N_FUP_VISITS>1)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(4,2,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$ARM),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+
+```
+
+
+## Quantitative analysis
+
+```{r failure_proportions, fig.width=12, fig.height=8}
 strong_fail = 38
 summary_outcomes = pcr_chagas %>%
   filter(!is.na(CT), Day_frm_rand>EOT) %>%
@@ -152,12 +282,30 @@ summary_outcomes = pcr_chagas %>%
   distinct(ID, .keep_all = T) %>%
   filter(N_fup_visits>1)
 
-summary_outcomes %>% group_by(ARM) %>%
+xx=summary_outcomes %>% group_by(ARM) %>%
   summarise(
     N = length(N_pos_tot),
     `FUP Visits` = median(N_fup_visits),
     Fail = sum(N_pos_tot>0),
     `Weak Fail` = sum(N_weak_pos_tot==1 & N_pos_tot==1),
-    `Strong Fail` = Fail- `Weak Fail`
-  )
+    `Strong Fail` = Fail- `Weak Fail`,
+    `Percent Fail` = round(100*Fail/N),
+    `Percent Strong Fail` = round(100*`Strong Fail`/N)
+  ) %>% arrange(`Percent Strong Fail`)
+xx
+
+require(DescTools)
+par(mar=c(10,5,1,1),las=1, cex.axis=1.3, cex.lab=1.3)
+plot(1:nrow(xx), xx$`Percent Fail`, ylim=c(0,100),panel.first = grid(),
+     xaxt='n', xlab='', ylab='Failure (%)',pch=15)
+for(i in 1:nrow(xx)){
+  out=100*BinomCI(x = xx$Fail[i], n = xx$N[i],method = 'jeffreys')
+  lines(rep(i,2), out[2:3])
+  
+  out=100*BinomCI(x = xx$`Strong Fail`[i], n = xx$N[i],method = 'jeffreys')
+  lines(rep(i,2)+.2, out[2:3],col='red')
+}
+axis(1, at=1:nrow(xx), labels = gsub(pattern = '+',replacement = '\n+',x = xx$ARM,fixed = T),
+     las=2,cex.axis=1)
+points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
 ```

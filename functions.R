@@ -5,11 +5,18 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
   dm_chagas = dm_chagas %>% 
     filter(ARM != "NOT PROVIDED IN THE CONTRIBUTED DATASET") %>%
     mutate(
+      ARM = gsub(pattern='BENZNIDAZOLE',replacement='BNZ',x=ARM),
+      ARM = gsub(pattern='FOSRAVUCONAZOLE',replacement='E1224',x=ARM),
       ARM = case_when(
-        ARM=='BENZNIDAZOLE' ~ 'BENZNIDAZOLE 300MG 8W',
+        ARM=='BNZ' ~ 'BNZ 300MG 8W',
         ARM=='FEXINIDAZOLE 3.6g' ~ 'FEX 1200MG 3D',
         ARM=='FEXINIDAZOLE 6.0g' ~ 'FEX 600MG 10D',
         ARM=='FEXINIDAZOLE 6.6g' ~ 'FEX 600MG 3D + 1200MG 4D',
+        ARM=="E1224 SHORT DOSE 4w" ~ "E1224 400MG 4W",
+        ARM=="E1224 HIGH DOSE 8w" ~ "E1224 400MG 8W",
+        ARM=="E1224 LOW DOSE 8w" ~ "E1224 200MG 8W",
+        ARM=="BNZ 300MG WEEKLY 8W E1224" ~ "BNZ 300MG/WK + E1224 300MG 8W",
+        ARM=="BNZ 150MG 4W E1224" ~ "BNZ 150MG 4W + E1224 300MG 8W",
         T ~ ARM
       )
     )
@@ -32,8 +39,13 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
       FOS_total_days = sum(FOS_daily_dose>0),
       # Day_last_bnz = max(INDY[BNZ_daily_dose>0]),
       # Day_last_fos = ifelse(FOS_total_dose==0,NA,max(INDY[FOS_daily_dose>0])
-      ) %>%
+    ) %>%
     distinct(USUBJID, .keep_all = T)
+  
+  # Make relative day from randomisation
+  # These two individuals have screening visits with an MBDY that is after their day 1 visit
+  mb_chagas$MBDY[mb_chagas$USUBJID == '596' & mb_chagas$VISIT == 'Screening'] = 0
+  mb_chagas$MBDY[mb_chagas$USUBJID == '603' & mb_chagas$VISIT == 'Screening'] = 0
   
   pcr_chagas = mb_chagas %>%
     filter(
@@ -76,7 +88,8 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
       ),
       MBORRES = ifelse(MBORRES=='>=40', 40, MBORRES),
       CT = as.numeric(MBORRES),
-      CT = ifelse(CT>40, 40, CT)) %>%
+      CT = ifelse(CT>40, 40, CT)
+      ) %>%
     group_by(USUBJID) %>%
     mutate(
       Ref_day = case_when(
@@ -96,18 +109,10 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
           Ref_day=='D7' ~ Day_frm_rand+6,
           Ref_day=='D14' ~ Day_frm_rand+13
         )
-    )%>%
-    group_by(USUBJID, VISIT_trans) %>%
-    mutate(Any_Pos_40 = any(CT<40),
-           PCR_number = 1:length(CT),
-           N_PCRs = max(PCR_number),
-           N_pos = sum(CT<40)) %>%
-    group_by(USUBJID, VISIT, MBREFID) %>%
-    mutate(N_PCRs_5ml_sample = length(CT),
-           N_pos_5ml_sample = sum(CT<40))
+    )
   
   pcr_chagas = merge(pcr_chagas, dm_chagas, by = c('USUBJID','STUDYID')) %>%
-   mutate(STUDYID = case_when(
+    mutate(STUDYID = case_when(
       STUDYID=='CGBKZSR' ~ 'FEX12',
       STUDYID=='CGLETTP' ~ 'E1224',
       STUDYID=='CGTNWOV' ~ 'BENDITA',
@@ -122,43 +127,29 @@ chagas_adam = function(dm_chagas, in_chagas, mb_chagas, ts_chagas){
   #                                   "BNZ_total_days","FOS_total_days","Day_last_bnz")],
   #         by = 'USUBJID', all = T)
   
-  # Make relative day from randomisation
-  # These two individuals have screening visits with an MBDY that is after their day 1 visit
-  pcr_chagas$MBDY[pcr_chagas$USUBJID == '596' & pcr_chagas$VISIT == 'Screening'] = 0
-  pcr_chagas$MBDY[pcr_chagas$USUBJID == '603' & pcr_chagas$VISIT == 'Screening'] = 0
+  
   
   pcr_chagas = pcr_chagas %>%
-    # mutate(ARM = factor(ARM, 
-    #                     levels = c("PLACEBO",
-    #                                "BENZNIDAZOLE 300MG 2W",
-    #                                "BENZNIDAZOLE 150MG 4W", 
-    #                                "BENZNIDAZOLE 300MG 4W",
-    #                                "BENZNIDAZOLE 150MG 4W FOSRAVUCONAZOLE",
-    #                                "BENZNIDAZOLE 300MG WEEKLY 8W FOSRAVUCONAZOLE",
-    #                                "BENZNIDAZOLE 300MG 8W",
-    #                                "FEXINIDAZOLE 3.6g",
-    #                                "FEXINIDAZOLE 6.0g",
-    #                                "FEXINIDAZOLE 6.6g",
-    #                                "FOSRAVUCONAZOLE HIGH DOSE 8w",
-    #                                "FOSRAVUCONAZOLE LOW DOSE 8w",
-    #                                "FOSRAVUCONAZOLE SHORT DOSE 4w"))) %>%
-    # filter(ID != 'CGTNWOV_347') %>% #person who only took 3 days
-    group_by(ID) %>%
+  group_by(ID) %>%
     mutate(EOT = case_when(
       ARM == 'PLACEBO' ~ 0,
-      ARM == 'BENZNIDAZOLE 150MG 4W FOSRAVUCONAZOLE' ~ 56,
-      ARM == 'BENZNIDAZOLE 150MG 4W' ~ 28,
-      ARM == 'BENZNIDAZOLE 300MG 4W' ~ 28,
-      ARM == 'BENZNIDAZOLE 300MG 8W' ~ 56,
-      ARM == 'BENZNIDAZOLE 300MG WEEKLY 8W FOSRAVUCONAZOLE' ~ 56,
-      ARM == 'BENZNIDAZOLE 300MG 2W' ~ 14,
+      ARM == 'BNZ 150MG 4W + E1224 300MG 8W' ~ 56,
+      ARM == 'BNZ 150MG 4W' ~ 28,
+      ARM == 'BNZ 300MG 4W' ~ 28,
+      ARM == 'BNZ 300MG 8W' ~ 56,
+      ARM == 'BNZ 300MG/WK + E1224 300MG 8W' ~ 56,
+      ARM == 'BNZ 300MG 2W' ~ 14,
       ARM == 'FEX 1200MG 3D' ~ 3,
       ARM == 'FEX 600MG 10D' ~ 10,
       ARM == 'FEX 600MG 3D + 1200MG 4D' ~ 7,
-      ARM == "FOSRAVUCONAZOLE HIGH DOSE 8w" ~ 56,
-      ARM == "FOSRAVUCONAZOLE LOW DOSE 8w" ~ 56,
-      ARM == "FOSRAVUCONAZOLE SHORT DOSE 4w" ~ 28
-    ))
+      ARM == "E1224 400MG 8W" ~ 56,
+      ARM == "E1224 200MG 8W" ~ 56,
+      ARM == "E1224 400MG 4W" ~ 28
+    )) %>%
+    ungroup() %>%
+    mutate(
+      VISIT_numeric = as.numeric(gsub(pattern ='D',replacement = '',
+                           x = ifelse(VISIT_trans=='Screening',-1,VISIT_trans))))
   
   return(pcr_chagas)
 }
@@ -176,11 +167,11 @@ make_matrix_pcr = function(pcr_dat, N_max_PCR=9){
   
   pcr_dat$PCR_name = apply(pcr_dat[, c('PCR_number','VISIT_trans')], 1, function(x) paste(x[1],x[2], sep = '_'))
   pcr_mat = array(NA, dim=c(N,K))
-  pcr_name_vals = pcr_dat %>% arrange(Day_frm_rand)
+  pcr_name_vals = pcr_dat %>% arrange(VISIT_numeric)
   
   colnames(pcr_mat) = apply(expand.grid(1:N_max_PCR, unique(pcr_name_vals$VISIT_trans)), 1, 
                             function(x) paste(x[1], x[2],sep = '_'))
-  print(colnames(pcr_mat))
+  # print(colnames(pcr_mat))
   rownames(pcr_mat) = unique(pcr_dat$ID)
   
   for(id in unique(pcr_dat$ID)){
@@ -193,22 +184,28 @@ make_matrix_pcr = function(pcr_dat, N_max_PCR=9){
 
 
 plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols, 
-                           visit_labels, arm_labels,
-                           ind_y){  
+                           visit_labels=NA, arm_labels, h_lines_ind, y_lab_ind,
+                           cex_y_lab=1){  
+  
+  arm_labels=gsub(pattern = '+',replacement = '\n+',x = arm_labels,fixed = T)
+  
   image(t(pcr_mat), x=1:ncol(pcr_mat), y = 1:nrow(pcr_mat),
         breaks = my_breaks,
         col = my_cols,
         xlab='', xaxt = 'n', yaxt='n', ylab='')
-  legend('topright', inset= c(-0.1,0), title = 'CT',
+  legend('topright', inset= c(-0.12,0), title = 'CT',
          fill= my_cols, xpd=T,
          legend = my_break_legend)
+  if(is.na(visit_labels)){
+    visit_labels = unique(unlist(sapply(colnames(pcr_mat), function(x) unlist(strsplit(x,split = '_'))[2])))
+  }
   axis(1, at = (1:(ncol(pcr_mat)/9))*9 - 4.5, 
-       labels = visit_labels, las=2)
+       labels = visit_labels, las=1,tick = F)
   
-  abline(h=ind_y[-1], lty=2)
+  abline(h=h_lines_ind, lty=2)
   
   abline(v=(1:(ncol(pcr_mat)/9))*9 + 0.5, lty=2)
   
-  axis(2, at = ind_y, labels = arm_labels,las=1,tick = F)
+  axis(2, at = y_lab_ind, labels = arm_labels,las=1,tick = F,cex.axis=cex_y_lab)
   
 }
