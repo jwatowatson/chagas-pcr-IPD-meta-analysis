@@ -13,6 +13,11 @@ knitr::opts_chunk$set(cache = F, cache.comments = FALSE,
 
 library(RColorBrewer)
 library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(bayesplot)
+library(gridExtra)
+
 source('functions.R')
 # source('make_adam.R')
 
@@ -145,7 +150,7 @@ placebo individuals in E1224 and BENDITA studies
 ```{r placebos, fig.height=6, fig.width=12}
 visits_overlap = intersect(unique(pcr_chagas$VISIT_numeric[pcr_chagas$STUDYID=='BENDITA']),
                            unique(pcr_chagas$VISIT_numeric[pcr_chagas$STUDYID=='E1224']))
-                
+
 pcr_chagas_ss=pcr_chagas %>% 
   filter(ARM == 'PLACEBO',
          VISIT_numeric %in% visits_overlap)
@@ -309,3 +314,51 @@ axis(1, at=1:nrow(xx), labels = gsub(pattern = '+',replacement = '\n+',x = xx$AR
      las=2,cex.axis=1)
 points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
 ```
+
+
+
+### stan model of cure
+
+```{r}
+
+
+file <- file.path("chagas_efficacy_model_v2.stan")
+mod <- cmdstan_model(file)
+
+pcr_summary = pcr_chagas %>% 
+  filter(STUDYID=='BENDITA') %>%
+  distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
+  filter(!is.na(N_pos_sample), !is.na(N_PCRs_sample), Day_frm_rand>EOT) %>%
+  ungroup() %>% 
+  mutate(
+    ID_numeric = as.numeric(as.factor(ID)),
+    ARM_numeric = as.numeric(as.factor(ARM))) %>%
+  arrange(ID) %>% group_by(ID) %>%
+  mutate(
+    N_fup_samples = length(N_PCRs_sample)
+  )
+pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
+table(pcr_unique$N_fup_samples, pcr_unique$ARM)
+ind_not_dup = which(!duplicated(pcr_summary$ID))
+data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
+                      n_samples = nrow(pcr_summary),
+                      Kmax = max(pcr_summary$N_PCRs_sample),
+                      K_arms = length(unique(pcr_summary$ARM)),
+                      trt_group = pcr_summary$ARM_numeric[ind_not_dup],
+                      y_pos = pcr_summary$N_pos_sample,
+                      K_FUP = pcr_summary$N_PCRs_sample,
+                      ind_start = ind_not_dup,
+                      ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
+                      PCR_specificity=1)
+
+fit <- mod$sample(
+  data = data_list_stan,
+  seed = 123,
+  chains = 4,
+  parallel_chains = 4,iter_sampling = 2000,
+  refresh = 100 # print update every 500 iters
+)
+mcmc_trace(fit$draws(c('p_1','q','p_2')))
+
+```
+
