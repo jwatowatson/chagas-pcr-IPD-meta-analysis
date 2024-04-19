@@ -2,6 +2,9 @@
 CH_2024_1_Watson/*
 RData/*
 
+# model fits
+Rout/*
+
 # History files
 .Rhistory
 .Rapp.history
