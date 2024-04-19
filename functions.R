@@ -20,33 +20,52 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas){
         T ~ ARM
       )
     )
-  ds_chagas = ds_chagas %>% filter(DSTERM=='RANDOMIZED')
+  ds_chagas = ds_chagas %>% filter(DSTERM=='RANDOMIZED') %>%# extract the day of randomisation relative to screening
+    mutate(Day_randomisation = DSSTDY)
   
-  ## The solution for getting days from randomisation is very ad hoc and not great...
-  in_chagas = in_chagas %>% 
-    filter(USUBJID %in% dm_chagas$USUBJID, !is.na(INDY)) %>%
-    group_by(USUBJID) %>%
-    filter(INTRT %in% c('FOSRAVUCONAZOLE','BENZNIDAZOLE','FEXINIDAZOLE','PLACEBO')) %>%
-    group_by(USUBJID, INDY) %>%
-    mutate(
-      BNZ_daily_dose = sum(INTRT=='BENZNIDAZOLE')*150,
-      FOS_daily_dose = sum(INTRT=='FOSRAVUCONAZOLE')*300
-    ) %>% group_by(USUBJID) %>%
-    distinct(USUBJID, INDY, .keep_all = T)%>%
-    mutate(
-      BNZ_total_dose = sum(BNZ_daily_dose),
-      FOS_total_dose = sum(FOS_daily_dose),
-      BNZ_total_days = sum(BNZ_daily_dose>0),
-      FOS_total_days = sum(FOS_daily_dose>0),
-      # Day_last_bnz = max(INDY[BNZ_daily_dose>0]),
-      # Day_last_fos = ifelse(FOS_total_dose==0,NA,max(INDY[FOS_daily_dose>0])
-    ) %>%
-    distinct(USUBJID, .keep_all = T)
-  
-  # Make relative day from randomisation
   # These two individuals have screening visits with an MBDY that is after their day 1 visit
   mb_chagas$MBDY[mb_chagas$USUBJID == '596' & mb_chagas$VISIT == 'Screening'] = 0
   mb_chagas$MBDY[mb_chagas$USUBJID == '603' & mb_chagas$VISIT == 'Screening'] = 0
+  # get day of randomisation from DS and then compute days relative to randomisation
+  mb_chagas = 
+    merge(mb_chagas, ds_chagas[, c('USUBJID','Day_randomisation')], all = T) %>%
+    mutate(
+      Day_frm_rand = MBDY-Day_randomisation
+    )
+  
+  ## The solution for getting days from randomisation is very ad hoc and not great...
+  in_chagas_summary = 
+    merge(in_chagas, ds_chagas[, c('USUBJID','Day_randomisation')], all = T) %>%
+    mutate(
+      IN_Day_frm_rand = INDY-Day_randomisation
+    ) %>%
+    filter(USUBJID %in% dm_chagas$USUBJID, !is.na(IN_Day_frm_rand)) %>%
+    group_by(USUBJID) %>%
+    filter(INTRT %in% c('FOSRAVUCONAZOLE','BENZNIDAZOLE','FEXINIDAZOLE','PLACEBO')) %>%
+    mutate( # make dummy benznidazole entries, so that placebo ar recorded as zero doses of all drugs
+      INDOSE = ifelse(INTRT=='PLACEBO',0,INDOSE),
+      INTRT = ifelse(INTRT=='PLACEBO','BENZNIDAZOLE',INTRT)
+    ) %>%
+    group_by(USUBJID, INDY) %>%
+    mutate(
+      bnz_daily_dose = sum(INDOSE[INTRT=='BENZNIDAZOLE']),
+      fos_daily_dose = sum(INDOSE[INTRT=='FOSRAVUCONAZOLE']),
+      fex_daily_dose = sum(INDOSE[INTRT=='FEXINIDAZOLE']),
+    ) %>% group_by(USUBJID) %>%
+    distinct(USUBJID, INDY, .keep_all = T)%>%
+    mutate(
+      BNZ_total_dose = sum(bnz_daily_dose),
+      FOS_total_dose = sum(fos_daily_dose),
+      FEX_total_dose = sum(fex_daily_dose),
+      BNZ_total_days = sum(bnz_daily_dose>0),
+      FOS_total_days = sum(fos_daily_dose>0),
+      FEX_total_days = sum(fex_daily_dose>0)
+    ) %>%
+    distinct(USUBJID, .keep_all = T) %>% 
+    select(USUBJID, 
+           starts_with('BNZ',ignore.case = F),
+           starts_with('FOS',ignore.case = F),
+           starts_with('FEX',ignore.case = F))
   
   pcr_chagas = mb_chagas %>%
     filter(
@@ -90,27 +109,9 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas){
       MBORRES = ifelse(MBORRES=='>=40', 40, MBORRES),
       CT = as.numeric(MBORRES),
       CT = ifelse(CT>40, 40, CT)
-      ) %>%
-    group_by(USUBJID) %>%
-    mutate(
-      Ref_day = case_when(
-        any(VISIT_trans == 'D1') ~ 'D1',
-        any(VISIT_trans == 'D2') ~ 'D2',
-        any(VISIT_trans == 'D7') ~ 'D7',
-        any(VISIT_trans == 'D14') ~ 'D14',
-        T ~ NA
-      ))%>% filter(!is.na(Ref_day)) %>%
-    mutate(
-      Ref_MBDY = unique(MBDY[VISIT_trans==Ref_day]),
-      Day_frm_rand = MBDY - Ref_MBDY,
-      Day_frm_rand = 
-        case_when(
-          Ref_day=='D1' ~ Day_frm_rand,
-          Ref_day=='D2' ~ Day_frm_rand+1,
-          Ref_day=='D7' ~ Day_frm_rand+6,
-          Ref_day=='D14' ~ Day_frm_rand+13
-        )
-    )
+    ) 
+  
+  
   
   pcr_chagas = merge(pcr_chagas, dm_chagas, by = c('USUBJID','STUDYID')) %>%
     mutate(STUDYID = case_when(
@@ -119,19 +120,14 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas){
       STUDYID=='CGTNWOV' ~ 'BENDITA',
     ))
   
+  pcr_chagas = merge(pcr_chagas, in_chagas_summary, by = 'USUBJID',all = T)
+  
   pcr_chagas$ID = apply(pcr_chagas[, c('STUDYID','USUBJID')], 1,
                         function(x) paste(c(x[1],as.numeric(x[2])), collapse ='_'))
   
-  # pcr_chagas = 
-  #   merge(pcr_chagas, in_chagas[, c('USUBJID', "BNZ_daily_dose","Day_last_fos",
-  #                                   "FOS_daily_dose","BNZ_total_dose","FOS_total_dose",
-  #                                   "BNZ_total_days","FOS_total_days","Day_last_bnz")],
-  #         by = 'USUBJID', all = T)
-  
-  
-  
+  # Make end of treatment variable
   pcr_chagas = pcr_chagas %>%
-  group_by(ID) %>%
+    group_by(ID) %>%
     mutate(EOT = case_when(
       ARM == 'PLACEBO' ~ 0,
       ARM == 'BNZ 150MG 4W + E1224 300MG 8W' ~ 56,
@@ -150,7 +146,7 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas){
     ungroup() %>%
     mutate(
       VISIT_numeric = as.numeric(gsub(pattern ='D',replacement = '',
-                           x = ifelse(VISIT_trans=='Screening',-1,VISIT_trans))))
+                                      x = ifelse(VISIT_trans=='Screening',-1,VISIT_trans))))
   
   return(pcr_chagas)
 }
@@ -186,7 +182,8 @@ make_matrix_pcr = function(pcr_dat, N_max_PCR=9){
 
 plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols, 
                            visit_labels=NA, arm_labels, h_lines_ind, y_lab_ind,
-                           cex_y_lab=1){  
+                           cex_y_lab=1,
+                           plot_legend=T){  
   
   arm_labels=gsub(pattern = '+',replacement = '\n+',x = arm_labels,fixed = T)
   
@@ -194,9 +191,11 @@ plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols,
         breaks = my_breaks,
         col = my_cols,
         xlab='', xaxt = 'n', yaxt='n', ylab='')
-  legend('topright', inset= c(-0.12,0), title = 'CT',
+  if(plot_legend) {
+    legend('topright', inset= c(-0.12,0), title = 'CT',
          fill= my_cols, xpd=T,
          legend = my_break_legend)
+  }
   if(is.na(visit_labels)){
     visit_labels = unique(unlist(sapply(colnames(pcr_mat), function(x) unlist(strsplit(x,split = '_'))[2])))
   }
@@ -209,4 +208,51 @@ plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols,
   
   axis(2, at = y_lab_ind, labels = arm_labels,las=1,tick = F,cex.axis=cex_y_lab)
   
+}
+
+
+
+make_stan_dataset_model_v2 = function(pcr_chagas_ss,PCR_spec=1){
+  
+  pcr_chagas_ss = pcr_chagas_ss %>% arrange(ARM, ID, Day_frm_rand)
+  pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+  
+  par(mar=c(2,7,0.5,0.5))
+  xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+  ind_y = which(!duplicated(xx2$ARM))
+  plot_pcr_matrix(pcr_mat = pcr_mat,
+                  my_breaks = my_breaks, 
+                  my_break_legend = my_breaks_legend,
+                  my_cols = my_cols,
+                  arm_labels = unique(pcr_chagas_ss$ARM),
+                  h_lines_ind = ind_y[-1]-0.5,
+                  y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                  cex_y_lab = .7,
+                  plot_legend = F)
+  
+  pcr_summary = pcr_chagas_ss %>%
+    distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
+    ungroup() %>% 
+    mutate(
+      ID_numeric = as.numeric(as.factor(ID)),
+      ARM_numeric = as.numeric(as.factor(ARM))) %>%
+    arrange(ID) %>% group_by(ID) %>%
+    mutate(
+      N_fup_samples = length(N_PCRs_sample)
+    )
+  pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
+  table(pcr_unique$N_fup_samples, pcr_unique$ARM)
+  ind_not_dup = which(!duplicated(pcr_summary$ID))
+  data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
+                        n_samples = nrow(pcr_summary),
+                        Kmax = max(pcr_summary$N_PCRs_sample),
+                        K_arms = length(unique(pcr_summary$ARM)),
+                        trt_group = pcr_summary$ARM_numeric[ind_not_dup],
+                        y_pos = pcr_summary$N_pos_sample,
+                        K_FUP = pcr_summary$N_PCRs_sample,
+                        ind_start = ind_not_dup,
+                        ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
+                        PCR_specificity=PCR_spec)
+  
+  return(data_list_stan)
 }

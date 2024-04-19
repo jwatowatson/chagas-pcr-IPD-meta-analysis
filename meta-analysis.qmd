@@ -21,8 +21,8 @@ library(gridExtra)
 source('functions.R')
 # source('make_adam.R')
 
+RE_RUN_STAN_MODEL=F
 ```
-
 
 Theoretical considerations around sensitivity
 
@@ -44,9 +44,6 @@ lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^5,lty=2,lwd=3,col='dar
 # single draw
 lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas)),lty=3,lwd=2)
 ```
-
-
-
 
 ## Load data
 
@@ -87,7 +84,6 @@ pcr_chagas_trip %>% ggplot(aes(x=CT_mean, y=CT_sd,color=as.factor(n_40)))+
 
 ```
 
-
 ### prep data
 
 ```{r}
@@ -99,7 +95,8 @@ pcr_chagas = pcr_chagas %>%
     N_pos_sample = sum(CT<40)) %>%
   group_by(ID,VISIT) %>%
   mutate(PCR_number = 1:length(CT)) %>%
-  ungroup() %>% filter(!(STUDYID=='E1224' & PCR_number>4 & VISIT=='Screening')) %>%
+  ungroup() %>% 
+  filter(!(STUDYID=='E1224' & PCR_number>4 & VISIT=='Screening')) %>%
   group_by(ID,VISIT) %>%
   mutate(percent_pos = sum(CT<40)/length(CT),
          Any_Pos_40 = any(CT<40),
@@ -144,7 +141,6 @@ for(ss in unique(pcr_chagas$STUDYID)){
 }
 ```
 
-
 placebo individuals in E1224 and BENDITA studies
 
 ```{r placebos, fig.height=6, fig.width=12}
@@ -167,7 +163,6 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
                 h_lines_ind = ind_y[-1]-0.5,
                 y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
 ```
-
 
 two versus eight weeks
 
@@ -214,6 +209,8 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 ```
 
 
+BNZ 150 for 4 weeks
+
 ```{r bnz_150_4wks, fig.height=10, fig.width=12}
 pcr_chagas_ss=pcr_chagas %>% 
   filter(STUDYID %in% c('BENDITA'),
@@ -236,6 +233,58 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 ```
 
 
+
+Order individuals by how many days BNZ they got
+
+```{r days_bnz}
+pcr_chagas_ss = pcr_chagas %>%
+  filter(FOS_total_dose==0, FEX_total_dose==0, 
+         STUDYID=='BENDITA',BNZ_total_days<=4*7,
+         N_FUP_VISITS>2) %>%
+  arrange(desc(BNZ_total_days), Mean_CT_inv_baseline, Day_frm_rand)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(3,3,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$BNZ_total_days))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$BNZ_total_days),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                cex_y_lab = .4, plot_legend = F)
+```
+
+
+
+Total dose of fexinidazole 
+
+```{r dose_fex}
+pcr_chagas_ss = pcr_chagas %>%
+  filter(FOS_total_dose==0, FEX_total_dose>0, BNZ_total_dose==0,
+         VISIT=='Screening' | Day_frm_rand>10,
+         N_FUP_VISITS>2) %>%
+  arrange(desc(FEX_total_dose), Mean_CT_inv_baseline, Day_frm_rand)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(3,3,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+ind_y = which(!duplicated(xx2$FEX_total_dose))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$FEX_total_dose),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                cex_y_lab = .4, plot_legend = F)
+```
+
+
+Possible sample mix-up, this is identifiable using this graphical visualisation
+
 ```{r mix_up, fig.height=10, fig.width=12}
 pcr_chagas_ss=pcr_chagas %>% 
   filter(STUDYID %in% c('BENDITA'),
@@ -257,7 +306,6 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 # View(dat_summary %>% filter(ID %in% c('BENDITA_466','BENDITA_594')))
 
 ```
-
 
 ```{r fexi_reduces_ss_biomass, fig.height=6, fig.width=12}
 visits_comp = c('Screening','D35','D63','D120','D180','D360')
@@ -283,7 +331,6 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
                 y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
 
 ```
-
 
 ## Quantitative analysis
 
@@ -334,76 +381,45 @@ axis(1, at=1:nrow(xx), labels = gsub(pattern = '+',replacement = '\n+',x = xx$AR
 points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
 ```
 
-
-
 ### stan model of cure
 
 compile model
 
-```{r}
+```{r stan_model}
 file <- file.path("chagas_efficacy_model_v2.stan")
 mod <- cmdstan_model(file)
+PCR_spec = 1
 ```
 
 
+### BENDITA fit
+
 fit to Bendita data first to check if working
 
-```{r stan_model, fig.width=10, fig.height=8}
-
+```{r bendita_stan_fit, fig.width=10, fig.height=8}
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
          Day_frm_rand>EOT,
          STUDYID=='BENDITA',
          !USUBJID %in% c('594','681','342')) 
-pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec = PCR_spec)
 
-par(mar=c(2,7,0.5,0.5))
-xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
-ind_y = which(!duplicated(xx2$ARM))
-plot_pcr_matrix(pcr_mat = pcr_mat,
-                my_breaks = my_breaks, 
-                my_break_legend = my_breaks_legend,
-                my_cols = my_cols,
-                arm_labels = unique(pcr_chagas_ss$ARM),
-                h_lines_ind = ind_y[-1]-0.5,
-                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
-                cex_y_lab = .7)
-
-pcr_summary = pcr_chagas_ss %>%
-  distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
-  
-  ungroup() %>% 
-  mutate(
-    ID_numeric = as.numeric(as.factor(ID)),
-    ARM_numeric = as.numeric(as.factor(ARM))) %>%
-  arrange(ID) %>% group_by(ID) %>%
-  mutate(
-    N_fup_samples = length(N_PCRs_sample)
+if(RE_RUN_STAN_MODEL){
+  fit_ben <- mod$sample(
+    data = data_list_stan,
+    seed = 123,
+    chains = 4,
+    parallel_chains = 4,iter_sampling = 2000,
+    refresh = 100 # print update every 500 iters
   )
-pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
-table(pcr_unique$N_fup_samples, pcr_unique$ARM)
-ind_not_dup = which(!duplicated(pcr_summary$ID))
-data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
-                      n_samples = nrow(pcr_summary),
-                      Kmax = max(pcr_summary$N_PCRs_sample),
-                      K_arms = length(unique(pcr_summary$ARM)),
-                      trt_group = pcr_summary$ARM_numeric[ind_not_dup],
-                      y_pos = pcr_summary$N_pos_sample,
-                      K_FUP = pcr_summary$N_PCRs_sample,
-                      ind_start = ind_not_dup,
-                      ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
-                      PCR_specificity=1)
+  fit_ben$save_object(file = 'Rout/fit_bendita.RDS')
+} else{
+  fit_ben <- readRDS('Rout/fit_bendita.RDS')
+}
 
-fit <- mod$sample(
-  data = data_list_stan,
-  seed = 123,
-  chains = 4,
-  parallel_chains = 4,iter_sampling = 2000,
-  refresh = 100 # print update every 500 iters
-)
-mcmc_trace(fit$draws(c('p_1','q','p_2')))
-gg_cure=mcmc_intervals(fit$draws(c("p_1")))+
+# mcmc_trace(fit_ben$draws(c('p_1','q','p_2')))
+gg_cure=mcmc_intervals(fit_ben$draws(c("p_1")))+
   ggplot2::scale_y_discrete(labels =
                               c("p_1[7]" ="Placebo",
                                 "p_1[3]" ="BNZ 2wks",
@@ -413,7 +429,7 @@ gg_cure=mcmc_intervals(fit$draws(c("p_1")))+
                                 "p_1[6]" ="BNZ 300 wkly + E1224",
                                 "p_1[5]" ="BNZ 300 8 wks"))+
   ggtitle('Probability of cure')+xlim(0,1)+theme_minimal()
-gg_sample=mcmc_intervals(fit$draws(c("p_2")))+
+gg_sample=mcmc_intervals(fit_ben$draws(c("p_2")))+
   ggplot2::scale_y_discrete(labels =
                               c("p_2[7]" ="Placebo",
                                 "p_2[3]" ="BNZ 2wks",
@@ -424,64 +440,133 @@ gg_sample=mcmc_intervals(fit$draws(c("p_2")))+
                                 "p_2[5]" ="BNZ 300 8 wks"))+
   ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
 pp=grid.arrange(gg_cure, gg_sample,nrow=2)
-
+mcmc_intervals(fit_ben$draws(c("q")))
 ```
 
 
 
-Fit to all data?
+### FEX fit
 
-```{r mega_stan_fit}
+```{r fex_stan_fit, fig.width=10, fig.height=8}
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(!is.na(N_pos_sample), 
+         !is.na(N_PCRs_sample), 
+         VISIT_numeric>EOT,
+         STUDYID=='FEX12') 
+data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec=PCR_spec)
+if(RE_RUN_STAN_MODEL){
+  fit_fex <- mod$sample(
+    data = data_list_stan,
+    seed = 123,
+    chains = 4,
+    parallel_chains = 4,iter_sampling = 2000,
+    refresh = 500 # print update every 500 iters
+  )
+  fit_fex$save_object(file = 'Rout/fit_fex.RDS')
+} else{
+  fit_fex <- readRDS('Rout/fit_fex.RDS')
+}
+
+
+gg_cure=mcmc_intervals(fit_fex$draws(c("p_1")))+
+  ggtitle('Probability of cure')+xlim(0,1)+theme_minimal()
+gg_sample=mcmc_intervals(fit_fex$draws(c("p_2")))+
+  ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
+pp=grid.arrange(gg_cure, gg_sample,nrow=2)
+mcmc_intervals(fit_fex$draws(c('q')))
+
+```
+
+### E1224 fit
+
+```{r}
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(!is.na(N_pos_sample), 
+         !is.na(N_PCRs_sample), 
+         VISIT_numeric>EOT,
+         STUDYID=='E1224') 
+
+data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec=PCR_spec)
+if(RE_RUN_STAN_MODEL){
+  fit_e1224 <- mod$sample(
+    data = data_list_stan,
+    seed = 123,
+    chains = 4,
+    parallel_chains = 4,iter_sampling = 2000,
+    refresh = 500 # print update every 500 iters
+  )
+  fit_e1224$save_object(file = 'Rout/fit_e1224.RDS')
+} else{
+  fit_e1224 <- readRDS('Rout/fit_e1224.RDS')
+}
+
+gg_cure=mcmc_intervals(fit_e1224$draws(c("p_1")))+
+  ggtitle('Probability of cure')+xlim(0,1)+theme_minimal()
+gg_sample=mcmc_intervals(fit_e1224$draws(c("p_2")))+
+  ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
+pp=grid.arrange(gg_cure, gg_sample,nrow=2)
+mcmc_intervals(fit_e1224$draws(c("q")))
+```
+
+
+### All data fit
+
+Fit to all data
+
+```{r mega_stan_fit, fig.width=10}
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
          Day_frm_rand>EOT,
-         !USUBJID %in% c('594','681','342')) 
-pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+         !USUBJID %in% c('594','681','342')) %>%
+  arrange(ARM)
 
-par(mar=c(2,7,0.5,0.5))
-xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
-ind_y = which(!duplicated(xx2$ARM))
-plot_pcr_matrix(pcr_mat = pcr_mat,
-                my_breaks = my_breaks, 
-                my_break_legend = my_breaks_legend,
-                my_cols = my_cols,
-                arm_labels = unique(pcr_chagas_ss$ARM),
-                h_lines_ind = ind_y[-1]-0.5,
-                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
-                cex_y_lab = .7)
+data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec=PCR_spec)
 
-pcr_summary = pcr_chagas_ss %>%
-  distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
-  
-  ungroup() %>% 
-  mutate(
-    ID_numeric = as.numeric(as.factor(ID)),
-    ARM_numeric = as.numeric(as.factor(ARM))) %>%
-  arrange(ID) %>% group_by(ID) %>%
-  mutate(
-    N_fup_samples = length(N_PCRs_sample)
+if(RE_RUN_STAN_MODEL){
+  fit_all <- mod$sample(
+    data = data_list_stan,
+    seed = 123,
+    chains = 4,
+    parallel_chains = 4,iter_sampling = 2000,
+    refresh = 500 # print update every 500 iters
   )
-pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
-table(pcr_unique$N_fup_samples, pcr_unique$ARM)
-ind_not_dup = which(!duplicated(pcr_summary$ID))
-data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
-                      n_samples = nrow(pcr_summary),
-                      Kmax = max(pcr_summary$N_PCRs_sample),
-                      K_arms = length(unique(pcr_summary$ARM)),
-                      trt_group = pcr_summary$ARM_numeric[ind_not_dup],
-                      y_pos = pcr_summary$N_pos_sample,
-                      K_FUP = pcr_summary$N_PCRs_sample,
-                      ind_start = ind_not_dup,
-                      ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
-                      PCR_specificity=1)
-
-fit <- mod$sample(
-  data = data_list_stan,
-  seed = 123,
-  chains = 4,
-  parallel_chains = 4,iter_sampling = 2000,
-  refresh = 100 # print update every 500 iters
-)
+  fit_all$save_object(file = 'Rout/fit_all.RDS')
+} else{
+  fit_all <- readRDS('Rout/fit_all.RDS')
+}
+gg1=mcmc_intervals(fit_all$draws(c("p_1")))+
+  ggplot2::scale_y_discrete(labels =
+                              c("p_1[13]" ="Placebo",
+                                "p_1[3]" ="BNZ 2wks",
+                                "p_1[1]" ="BNZ 150 4wks",
+                                "p_1[4]" ="BNZ 300 4wks",
+                                "p_1[2]" ="BNZ 150 4wks + E1224",
+                                "p_1[6]" ="BNZ 300 wkly + E1224",
+                                "p_1[5]" ="BNZ 300 8 wks",
+                                "p_1[7]" ="E1224 LD 8W",
+                                "p_1[8]" ="E1224 HD 4W",
+                                "p_1[9]" ="E1224 HD 8W",
+                                "p_1[10]" ="FEX 3d",
+                                "p_1[11]" ="FEX 10d",
+                                "p_1[12]" ="FEX 7d"))+
+  ggtitle('Probability of cure')+xlim(0,1)+theme_minimal()
+gg2=mcmc_intervals(fit_all$draws(c("p_2")))+
+  ggplot2::scale_y_discrete(labels =
+                              c("p_2[13]" ="Placebo",
+                                "p_2[3]" ="BNZ 2wks",
+                                "p_2[1]" ="BNZ 150 4wks",
+                                "p_2[4]" ="BNZ 300 4wks",
+                                "p_2[2]" ="BNZ 150 4wks + E1224",
+                                "p_2[6]" ="BNZ 300 wkly + E1224",
+                                "p_2[5]" ="BNZ 300 8 wks",
+                                "p_2[7]" ="E1224 LD 8W",
+                                "p_2[8]" ="E1224 HD 4W",
+                                "p_2[9]" ="E1224 HD 8W",
+                                "p_2[10]" ="FEX 3d",
+                                "p_2[11]" ="FEX 10d",
+                                "p_2[12]" ="FEX 7d"))+
+  ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
+pp=grid.arrange(gg1, gg2,nrow=1)
+mcmc_intervals(fit_all$draws(c("q")))
 ```
-
