@@ -8,6 +8,11 @@ source('functions.R')
 
 dm_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/DM 2024-04-15.csv')
 ds_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/DS 2024-04-15.csv')
+vs_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/VS 2024-04-15.csv')
+
+sa_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/SA 2024-04-15.csv')
+
+lb_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/LB 2024-04-15.csv')
 
 in_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/IN 2024-04-15.csv')
 ts_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/TS 2024-04-15.csv')
@@ -17,11 +22,16 @@ pc_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/PC 2024-04-15.csv')
 table(dm_chagas$STUDYID)
 
 
-pcr_chagas=chagas_adam(dm_chagas = dm_chagas,
+out=chagas_adam(dm_chagas = dm_chagas,
                        ds_chagas = ds_chagas,
                        in_chagas = in_chagas, 
                        mb_chagas = mb_chagas,
-                       ts_chagas = ts_chagas)
+                       ts_chagas = ts_chagas,
+                       vs_chagas = vs_chagas,
+                       sa_chagas = sa_chagas)
+pcr_chagas=out$pcr_chagas
+sa_chagas=out$sa_chagas
+
 table(pcr_chagas$VISIT_trans)
 table(pcr_chagas$VISIT_numeric)
 
@@ -30,7 +40,9 @@ plot(pcr_chagas$VISIT_numeric, pcr_chagas$Day_frm_rand, col=as.numeric(as.factor
 legend('bottomright', col=1:3, legend = unique(pcr_chagas$STUDYID),lwd=2)
 
 
+
 save(pcr_chagas, file = 'RData/pcr_chagas.RData')
+save(sa_chagas, file = 'RData/sa_chagas.RData')
 
 # ### Try to get old ID variable
 # 

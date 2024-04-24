@@ -11,6 +11,10 @@ data {
   
   // tuning variable - specificity of the PCR at given cutoff threshold
   real<lower=0,upper=1> PCR_specificity;
+  
+  // priors
+  real<lower=0> p_1_beta_prior;
+  real<lower=0> p_2_beta_prior;
 }
 
 
@@ -22,8 +26,8 @@ parameters {
 
 
 model {
-  p_1 ~ beta(.5,.5);
-  p_2 ~ beta(4,4);
+  p_1 ~ beta(p_1_beta_prior,p_1_beta_prior);
+  p_2 ~ beta(p_2_beta_prior,p_2_beta_prior);
   q ~ beta(2,2);
   
   for(i in 1:n_id){

@@ -17,6 +17,9 @@ library(cmdstanr)
 library(posterior)
 library(bayesplot)
 library(gridExtra)
+library(survival)
+library(survminer)
+
 
 source('functions.R')
 # source('make_adam.R')
@@ -34,7 +37,8 @@ my_lambdas = seq(from=log10(1/5000), to=log10(5000/5000),length.out=100)
 par(las=1, cex.lab=1.3, cex.axis=1.3)
 # 15 independent draws
 plot(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^15,
-     type='l', panel.first=grid(), xaxt='n', xlab='Parasite density per ml',
+     type='l', panel.first=grid(), xaxt='n',
+     xlab='Parasite density per ml',
      ylab='Probability at least one draw has at least 1 parasite',lwd=3, col='darkred')
 vals = c(0.0002, 0.001, 0.01, .1, 1, 10)
 axis(1, at = log10(vals),labels = vals)
@@ -52,6 +56,48 @@ load('RData/pcr_chagas.RData')
 
 # load('RData/ID_map.RData')
 # pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)
+```
+
+## Tolerability
+
+```{r treatment_discont, fig.height=8, fig.width=8}
+bendita_dis = pcr_chagas %>% filter(STUDYID=='BENDITA') %>% 
+  distinct(ID, .keep_all = T) %>%
+  mutate(
+    discont = ifelse(!is.na(time_stop),1,0),
+    paused = ifelse(!is.na(time_pause),1,0),
+    time_stop = ifelse(is.na(time_stop), 56, time_stop),
+    time_stop = ifelse(time_stop>56, 56, time_stop),
+    time_pause = ifelse(is.na(time_pause), 56, time_pause),
+    time_pause = ifelse(time_pause>56, 56, time_pause),
+    ARM2 = case_when(
+      ARM %in% c('BNZ 150MG 4W','BNZ 150MG 4W + E1224 300MG 8W') ~ '150mg-4wks',
+      ARM == "BNZ 300MG 4W" ~ '300mg-4wks',
+      ARM == "BNZ 300MG 2W" ~ '300mg-2wks',
+      ARM == "BNZ 300MG 8W" ~ '300mg-8wks',
+      ARM == "BNZ 300MG/WK + E1224 300MG 8W" ~ '300mg-weekly',
+      ARM == "PLACEBO" ~ 'Placebo')
+    )
+
+s1 <- survfit(Surv(time_stop, discont) ~ ARM2, data = bendita_dis)
+p1=ggsurvplot(s1, data = bendita_dis, risk.table = F,fun = function(x) 1-x,
+              title='Stopping treatment',ylim=c(0,0.3),legend='top')
+
+s1 <- survfit(Surv(time_pause, paused) ~ ARM2, data = bendita_dis)
+p2=ggsurvplot(s1, data = bendita_dis, risk.table = F,fun = function(x) 1-x,
+              title='Pausing treatment',ylim=c(0,0.5),legend='none')
+p1$plot
+p2$plot
+# 
+# e1224_dis = pcr_chagas %>% filter(STUDYID=='E1224') %>% 
+#   distinct(ID, .keep_all = T) %>%
+#   mutate(
+#     discont_paused = ifelse(!is.na(time_stop),1,0),
+#     time_stop = ifelse(is.na(time_stop), 56, time_stop),
+#     time_stop = ifelse(time_stop>56,56, time_stop))
+# s1 <- survfit(Surv(time_stop, discont_paused) ~ ARMCD, data = e1224_dis)
+# ggsurvplot(s1, data = bendita_dis, risk.table = F,fun = function(x) 1-x)
+
 ```
 
 ## Plot PCR data
@@ -208,7 +254,6 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
                 y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
 ```
 
-
 BNZ 150 for 4 weeks
 
 ```{r bnz_150_4wks, fig.height=10, fig.width=12}
@@ -231,8 +276,6 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 # View(dat_summary %>% filter(ID %in% c('BENDITA_466','BENDITA_594')))
 
 ```
-
-
 
 Order individuals by how many days BNZ they got
 
@@ -257,9 +300,7 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
                 cex_y_lab = .4, plot_legend = F)
 ```
 
-
-
-Total dose of fexinidazole 
+Total dose of fexinidazole
 
 ```{r dose_fex}
 pcr_chagas_ss = pcr_chagas %>%
@@ -281,7 +322,6 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
                 y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
                 cex_y_lab = .4, plot_legend = F)
 ```
-
 
 Possible sample mix-up, this is identifiable using this graphical visualisation
 
@@ -333,6 +373,61 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 ```
 
 ## Quantitative analysis
+
+### cumulative probabilities
+
+cumulative probability of recurrent PCR
+
+```{r cum_CT_values_FUP}
+xlims=c(28,40)
+xs=seq(28,40, by=.1)
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         STUDYID=='FEX12', CT<40) 
+par(las=1,mfrow=c(2,2),family='serif')
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='FEX-12', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         STUDYID=='BENDITA', 
+         !USUBJID %in% c('594','681','342'),
+         ARM!='PLACEBO',CT<40) 
+par(las=1)
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='BENDITA', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         STUDYID=='E1224', 
+         !ARM%in%c('PLACEBO',"BNZ 300MG 8W"),
+         CT<40) 
+par(las=1)
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='E1224', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         ARM%in%c('PLACEBO'),
+         CT<40) 
+par(las=1)
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='PLACEBO', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+```
+
+### rough failure estimates
 
 ```{r failure_proportions, fig.width=12, fig.height=8}
 strong_fail = 38
@@ -386,11 +481,10 @@ points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
 compile model
 
 ```{r stan_model}
-file <- file.path("chagas_efficacy_model_v2.stan")
+file <- file.path("Stan_models/chagas_efficacy_model_v2.stan")
 mod <- cmdstan_model(file)
 PCR_spec = 1
 ```
-
 
 ### BENDITA fit
 
@@ -400,9 +494,10 @@ fit to Bendita data first to check if working
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
-         Day_frm_rand>EOT,
+         VISIT_numeric>EOT,VISIT_numeric>30,
          STUDYID=='BENDITA',
-         !USUBJID %in% c('594','681','342')) 
+         !USUBJID %in% c('681'))
+        # !USUBJID %in% c('594','681','342')) 
 data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec = PCR_spec)
 
 if(RE_RUN_STAN_MODEL){
@@ -411,14 +506,13 @@ if(RE_RUN_STAN_MODEL){
     seed = 123,
     chains = 4,
     parallel_chains = 4,iter_sampling = 2000,
-    refresh = 100 # print update every 500 iters
+    refresh = 500 # print update every 500 iters
   )
   fit_ben$save_object(file = 'Rout/fit_bendita.RDS')
 } else{
   fit_ben <- readRDS('Rout/fit_bendita.RDS')
 }
 
-# mcmc_trace(fit_ben$draws(c('p_1','q','p_2')))
 gg_cure=mcmc_intervals(fit_ben$draws(c("p_1")))+
   ggplot2::scale_y_discrete(labels =
                               c("p_1[7]" ="Placebo",
@@ -439,11 +533,12 @@ gg_sample=mcmc_intervals(fit_ben$draws(c("p_2")))+
                                 "p_2[6]" ="BNZ 300 wkly + E1224",
                                 "p_2[5]" ="BNZ 300 8 wks"))+
   ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
-pp=grid.arrange(gg_cure, gg_sample,nrow=2)
+grid.arrange(gg_cure, gg_sample,nrow=2)
 mcmc_intervals(fit_ben$draws(c("q")))
+
+draws <- fit_ben$draws(format = "matrix")
+mean(draws[,'p_1[3]'] < draws[,'p_1[5]'])
 ```
-
-
 
 ### FEX fit
 
@@ -479,7 +574,7 @@ mcmc_intervals(fit_fex$draws(c('q')))
 
 ### E1224 fit
 
-```{r}
+```{r e1224_stan_fit}
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
@@ -508,16 +603,15 @@ pp=grid.arrange(gg_cure, gg_sample,nrow=2)
 mcmc_intervals(fit_e1224$draws(c("q")))
 ```
 
-
 ### All data fit
 
 Fit to all data
 
-```{r mega_stan_fit, fig.width=10}
+```{r all_data_fit, fig.width=10}
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
-         Day_frm_rand>EOT,
+         VISIT_numeric>EOT,
          !USUBJID %in% c('594','681','342')) %>%
   arrange(ARM)
 
@@ -569,4 +663,37 @@ gg2=mcmc_intervals(fit_all$draws(c("p_2")))+
   ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
 pp=grid.arrange(gg1, gg2,nrow=1)
 mcmc_intervals(fit_all$draws(c("q")))
+```
+
+### adding covariate effects
+
+```{r}
+file2 <- file.path("Stan_models/chagas_efficacy_model_v3.stan")
+mod2 <- cmdstan_model(file2)
+```
+
+```{r}
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(!is.na(N_pos_sample), 
+         !is.na(N_PCRs_sample), 
+         Day_frm_rand>EOT,
+         STUDYID=='BENDITA',ARM=='PLACEBO',
+         !USUBJID %in% c('594','681','342')) 
+pcr_chagas_ss$SITEID=as.factor(pcr_chagas_ss$SITEID)
+data_list_stan=
+  make_stan_dataset_model_v2(pcr_chagas_ss,
+                             PCR_spec = PCR_spec,x_covs = c('Mean_CT_inv_baseline'))
+
+if(RE_RUN_STAN_MODEL){
+  fit_ben <- mod2$sample(
+    data = data_list_stan,
+    seed = 123,
+    chains = 4,
+    parallel_chains = 4,iter_sampling = 2000,
+    refresh = 500 # print update every 500 iters
+  )
+  fit_ben$save_object(file = 'Rout/fit_bendita_cov.RDS')
+} else{
+  fit_ben <- readRDS('Rout/fit_bendita_cov.RDS')
+}
 ```

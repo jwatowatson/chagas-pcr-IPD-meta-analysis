@@ -1,0 +1,71 @@
+---
+title: "Tolerability"
+format: html
+editor: visual
+---
+
+## Preambule
+
+```{r}
+knitr::opts_chunk$set(cache = F, cache.comments = FALSE,
+                      echo = T, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+library(RColorBrewer)
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(bayesplot)
+library(gridExtra)
+library(survival)
+library(survminer)
+
+
+source('functions.R')
+# source('make_adam.R')
+
+RE_RUN_STAN_MODEL=F
+```
+
+## Load data
+
+```{r}
+load('RData/sa_chagas.RData')
+```
+
+## BENDITA
+
+### Skin issues
+
+```{r}
+# skin related terms to select
+my_terms = c('erythem*','papules','prurit*',
+             'itch*','dermatit*','rash','urtic*','skin',
+             'dermat*','desquamat*','scratch*')
+ind= union(grep(pattern = paste(my_terms, collapse = '|'),
+                x = sa_chagas$SATERM,ignore.case = T), 
+           which(sa_chagas$SADECOD %in% 'Itching','Urticaria','Eruption of skin'))
+sa_chagas = sa_chagas[ind, ] %>%
+  group_by(USUBJID) %>%
+  mutate(start_skin_issue = min(SASTDY),
+         issues = paste(SATERM, collapse = '-')) %>%
+  distinct(USUBJID, .keep_all = T)
+```
+
+
+```{r bendita}
+sa_chagas_ben = sa_chagas%>%filter(STUDYID=='BENDITA')
+  table(sa_chagas_ben$ARM)
+  unique(sa_chagas_ben$SATERM)
+```
+
+
+
+
+
+```{r e1224}
+sa_chagas_e1224 = sa_chagas%>%filter(STUDYID=='E1224')
+  table(sa_chagas_e1224$ARM)
+  unique(sa_chagas_e1224$SATERM)
+```
