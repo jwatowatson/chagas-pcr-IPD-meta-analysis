@@ -12,6 +12,7 @@ vs_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/VS 2024-04-15.csv')
 
 sa_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/SA 2024-04-15.csv')
 
+## need to automate unit checks
 lb_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/LB 2024-04-15.csv')
 
 in_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/IN 2024-04-15.csv')
@@ -23,26 +24,29 @@ table(dm_chagas$STUDYID)
 
 
 out=chagas_adam(dm_chagas = dm_chagas,
-                       ds_chagas = ds_chagas,
-                       in_chagas = in_chagas, 
-                       mb_chagas = mb_chagas,
-                       ts_chagas = ts_chagas,
-                       vs_chagas = vs_chagas,
-                       sa_chagas = sa_chagas)
+                ds_chagas = ds_chagas,
+                in_chagas = in_chagas, 
+                mb_chagas = mb_chagas,
+                ts_chagas = ts_chagas,
+                vs_chagas = vs_chagas,
+                sa_chagas = sa_chagas,
+                lb_chagas = lb_chagas)
+
+
 pcr_chagas=out$pcr_chagas
 sa_chagas=out$sa_chagas
+lb_chagas=out$lb_chagas
 
-table(pcr_chagas$VISIT_trans)
-table(pcr_chagas$VISIT_numeric)
-
-unique(pcr_chagas$EOT)
-plot(pcr_chagas$VISIT_numeric, pcr_chagas$Day_frm_rand, col=as.numeric(as.factor(pcr_chagas$STUDYID)))
-legend('bottomright', col=1:3, legend = unique(pcr_chagas$STUDYID),lwd=2)
+dat_summary = pcr_chagas %>% distinct(USUBJID, .keep_all = T)
+table(dat_summary$ARM, dat_summary$BNZ_total_days)
+# plot(pcr_chagas$VISIT_numeric, pcr_chagas$Day_frm_rand, col=as.numeric(as.factor(pcr_chagas$STUDYID)))
+# legend('bottomright', col=1:3, legend = unique(pcr_chagas$STUDYID),lwd=2)
 
 
 
 save(pcr_chagas, file = 'RData/pcr_chagas.RData')
 save(sa_chagas, file = 'RData/sa_chagas.RData')
+save(lb_chagas, file = 'RData/lb_chagas.RData')
 
 # ### Try to get old ID variable
 # 

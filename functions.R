@@ -1,5 +1,5 @@
 # This function makes an ADAM dataset
-chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_chagas,sa_chagas){
+chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_chagas,sa_chagas, lb_chagas){
   
   # only select individuals who were randomised
   dm_chagas = dm_chagas %>% 
@@ -43,7 +43,7 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_
       Day_frm_rand = MBDY-Day_randomisation
     )
   
-  ## The solution for getting days from randomisation is very ad hoc and not great...
+  in_chagas = merge(in_chagas, dm_chagas, by = c('USUBJID', 'STUDYID'))
   in_chagas_summary = 
     merge(in_chagas, ds_chagas[, c('USUBJID','Day_randomisation')], all = T) %>%
     mutate(
@@ -56,20 +56,23 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_
       INDOSE = ifelse(INTRT=='PLACEBO',0,INDOSE),
       INTRT = ifelse(INTRT=='PLACEBO','BENZNIDAZOLE',INTRT)
     ) %>%
-    group_by(USUBJID, INDY) %>%
+    group_by(USUBJID, IN_Day_frm_rand) %>%
     mutate(
       bnz_daily_dose = sum(INDOSE[INTRT=='BENZNIDAZOLE']),
       fos_daily_dose = sum(INDOSE[INTRT=='FOSRAVUCONAZOLE']),
       fex_daily_dose = sum(INDOSE[INTRT=='FEXINIDAZOLE']),
     ) %>% group_by(USUBJID) %>%
-    distinct(USUBJID, INDY, .keep_all = T)%>%
+    distinct(USUBJID, INDY, .keep_all = T) %>% group_by(USUBJID) %>%
     mutate(
       BNZ_total_dose = sum(bnz_daily_dose),
       FOS_total_dose = sum(fos_daily_dose),
       FEX_total_dose = sum(fex_daily_dose),
-      BNZ_total_days = sum(bnz_daily_dose>0),
-      FOS_total_days = sum(fos_daily_dose>0),
-      FEX_total_days = sum(fex_daily_dose>0)
+      BNZ_total_dose = ifelse(is.na(BNZ_total_dose), 0, BNZ_total_dose),
+      FOS_total_dose = ifelse(is.na(FOS_total_dose), 0, FOS_total_dose),
+      FEX_total_dose = ifelse(is.na(FEX_total_dose), 0, FEX_total_dose),
+      BNZ_total_days = ifelse(BNZ_total_dose==0, 0, max(IN_Day_frm_rand[which(bnz_daily_dose>0)])),
+      FOS_total_days = ifelse(FOS_total_dose==0, 0, max(IN_Day_frm_rand[which(fos_daily_dose>0)])),
+      FEX_total_days = ifelse(FEX_total_dose==0, 0, max(IN_Day_frm_rand[which(fex_daily_dose>0)]))
     ) %>%
     distinct(USUBJID, .keep_all = T) %>% 
     select(USUBJID, 
@@ -122,16 +125,19 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_
     ) 
   
   
-  pcr_chagas = merge(pcr_chagas, in_chagas_summary, by = 'USUBJID',all = T)
+  pcr_chagas = merge(pcr_chagas, in_chagas_summary, by = 'USUBJID', all = T)
   pcr_chagas = merge(pcr_chagas, dm_chagas, by = c('USUBJID','STUDYID')) %>%
     mutate(
       STUDYID = case_when(
         STUDYID=='CGBKZSR' ~ 'FEX12',
         STUDYID=='CGLETTP' ~ 'E1224',
         STUDYID=='CGTNWOV' ~ 'BENDITA'),
+      ##****not yet curated****##
+      BNZ_total_dose = ifelse(STUDYID=='E1224' & ARM=='BNZ 300MG 8W', 16800, BNZ_total_dose),
+      BNZ_total_days = ifelse(STUDYID=='E1224' & ARM=='BNZ 300MG 8W', 56, BNZ_total_days),
       BNZ_total_dose_mg_kg = BNZ_total_dose/weight,
       FOS_total_dose_mg_kg = FOS_total_dose/weight,
-      FEX_total_dose_mg_kg = sum(FEX_total_dose)/weight
+      FEX_total_dose_mg_kg = FEX_total_dose/weight
     )
   
   
@@ -190,7 +196,37 @@ chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_
         STUDYID=='CGLETTP' ~ 'E1224',
         STUDYID=='CGTNWOV' ~ 'BENDITA'))
   
-  return(list(pcr_chagas=pcr_chagas, sa_chagas=sa_chagas))
+  
+  lb_chagas = lb_chagas %>% 
+    mutate(
+      LBORRES=as.numeric(LBORRES),
+      LBORRES = ifelse(LBORRESU=='10^9/L', LBORRES*10^3, LBORRES),
+      LBORRES = ifelse(LBORRESU=='g/L', LBORRES/10, LBORRES))
+  
+  lb_chagas_wide =
+    merge(lb_chagas, 
+          ds_chagas[, c('USUBJID','Day_randomisation')], 
+          all = T,by = 'USUBJID') %>%
+    mutate(
+      Day_frm_rand = LBDY-Day_randomisation
+    ) %>% 
+    filter(!is.na(LBORRES), USUBJID %in% dm_chagas$USUBJID) %>% 
+    pivot_wider(names_from = LBTEST, 
+                values_from = LBORRES,
+                id_cols = c('STUDYID','USUBJID','Day_frm_rand','VISIT'), 
+                values_fn = mean)%>%
+    mutate(
+      STUDYID = case_when(
+        STUDYID=='CGBKZSR' ~ 'FEX12',
+        STUDYID=='CGLETTP' ~ 'E1224',
+        STUDYID=='CGTNWOV' ~ 'BENDITA')) %>%
+    arrange(STUDYID, USUBJID, Day_frm_rand)
+  lb_chagas_wide =
+    merge(lb_chagas_wide, 
+          dm_chagas[, c('USUBJID','ARM')], 
+          all = T,by = 'USUBJID')
+  
+  return(list(pcr_chagas=pcr_chagas, sa_chagas=sa_chagas, lb_chagas=lb_chagas_wide))
 }
 
 
@@ -254,7 +290,8 @@ plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols,
 
 
 
-make_stan_dataset_model_v2 = function(pcr_chagas_ss,x_covs = NULL, PCR_spec=1){
+make_stan_dataset_model_v2 = function(pcr_chagas_ss,x_covs = NULL, PCR_spec=1,
+                                      p_1_beta_prior=.5, p_2_beta_prior=2){
   
   pcr_chagas_ss = pcr_chagas_ss %>% arrange(ARM, ID, Day_frm_rand)
   pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
@@ -301,7 +338,9 @@ make_stan_dataset_model_v2 = function(pcr_chagas_ss,x_covs = NULL, PCR_spec=1){
                         K_FUP = pcr_summary$N_PCRs_sample,
                         ind_start = ind_not_dup,
                         ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
-                        PCR_specificity=PCR_spec)
+                        PCR_specificity=PCR_spec,
+                        p_1_beta_prior=p_1_beta_prior,
+                        p_2_beta_prior=p_2_beta_prior)
   
   return(data_list_stan)
 }

@@ -20,21 +20,118 @@ library(bayesplot)
 library(gridExtra)
 library(survival)
 library(survminer)
-
+library(pscl)
 
 source('functions.R')
-# source('make_adam.R')
-
 RE_RUN_STAN_MODEL=F
+in_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/IN 2024-04-15.csv')
+ds_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/DS 2024-04-15.csv')
+ds_chagas = ds_chagas %>% filter(DSTERM=='RANDOMIZED') %>%# extract the day of randomisation relative to screening
+  mutate(Day_randomisation = DSSTDY)
+in_chagas =  merge(in_chagas, ds_chagas[, c('USUBJID','Day_randomisation')], all = T) %>%
+  mutate(
+    IN_Day_frm_rand = INDY-Day_randomisation
+  ) %>% select(USUBJID, INTRT, INDOSE, IN_Day_frm_rand)
 ```
+
+
 
 ## Load data
 
 ```{r}
 load('RData/sa_chagas.RData')
+load('RData/lb_chagas.RData')
+load('RData/pcr_chagas.RData')
+
+summary_dat = pcr_chagas%>%distinct(USUBJID, .keep_all = T)
+
+table(summary_dat$ARM, summary_dat$BNZ_total_dose>0)
+lb_chagas = merge(lb_chagas, 
+                  summary_dat[, c('USUBJID','BNZ_total_dose_mg_kg')],
+                  by = c('USUBJID'), all = T)
 ```
 
 ## BENDITA
+
+## Tolerability
+
+```{r treatment_discont, fig.height=10, fig.width=10}
+dis_data = pcr_chagas %>%  
+  distinct(ID, .keep_all = T) %>%
+  mutate(
+    discont = ifelse(!is.na(time_stop),1,0),
+    paused = ifelse(!is.na(time_pause),1,0),
+    time_stop = ifelse(is.na(time_stop), 56, time_stop),
+    time_stop = ifelse(time_stop>56, 56, time_stop),
+    time_pause = ifelse(is.na(time_pause), 56, time_pause),
+    time_pause = ifelse(time_pause>56, 56, time_pause),
+    ARM2 = as.factor(case_when(
+      ARM == "PLACEBO" ~ 'Placebo',
+      ARM %in% c('BNZ 150MG 4W','BNZ 150MG 4W + E1224 300MG 8W') ~ '150mg-4wks',
+      ARM == "BNZ 300MG 4W" ~ '300mg-4wks',
+      ARM == "BNZ 300MG 2W" ~ '300mg-2wks',
+      ARM == "BNZ 300MG 8W" ~ '300mg-8wks',
+      ARM == "BNZ 300MG/WK + E1224 300MG 8W" ~ '300mg-weekly',
+      T ~ ARM))
+  )
+
+bendita_dis = dis_data %>% filter(STUDYID=='BENDITA')
+my_pal=RColorBrewer::brewer.pal(12, name = 'Paired')
+names(my_pal)=levels(dis_data$ARM2)
+
+
+s1 <- survfit(Surv(time_stop, discont) ~ ARM2, data = bendita_dis)
+unique(s1$strata)
+ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
+           title='Stopping treatment',ylim=c(0,0.25),legend='top',
+           legend.labs=levels(droplevels(bendita_dis$ARM2)),
+           legend.title='', 
+           palette = my_pal[levels(droplevels(bendita_dis$ARM2))])
+# 
+# s1 <- survfit(Surv(time_pause, paused) ~ ARM2, data = bendita_dis)
+# ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
+#            title='Pausing treatment',ylim=c(0,0.4),legend='top',
+#            legend.labs=levels(droplevels(bendita_dis$ARM2)),
+#            legend.title='', palette = my_pal)
+
+
+e1224_dis = dis_data %>% filter(STUDYID=='E1224') 
+s1 <- survfit(Surv(time_stop, discont) ~ ARM2, data = e1224_dis)
+unique(s1$strata)
+ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
+           title='Stopping treatment',ylim=c(0,0.25),legend='top',
+           legend.labs=levels(droplevels(e1224_dis$ARM2)),
+           legend.title='', 
+           palette = my_pal[levels(droplevels(e1224_dis$ARM2))])
+
+# s1 <- survfit(Surv(time_pause, paused) ~ ARM2, data = e1224_dis)
+# ggsurvplot(s1, data = e1224_dis, risk.table = T,fun = function(x) 1-x,
+#            title='Pausing treatment',ylim=c(0,0.4),legend='top',
+#            legend.labs=levels(droplevels(e1224_dis$ARM2)),
+#            legend.title='', palette = my_pal)
+
+```
+
+
+
+Trying to understand pausing treatment in the 2 week arm
+
+```{r}
+ids_2wks_pause = dis_data %>% 
+  filter(paused==1,STUDYID=='BENDITA',ARM2=='300mg-2wks') %>%
+  select(USUBJID, time_stop, time_pause, BNZ_total_dose)
+in_chagas_pause = in_chagas %>% 
+  filter(USUBJID %in% ids_2wks_pause$USUBJID,
+         INTRT%in%c('PLACEBO','BENZNIDAZOLE')) %>%
+  arrange(USUBJID, IN_Day_frm_rand, INTRT)
+
+in_chagas_pause = 
+  merge(in_chagas_pause, ids_2wks_pause, by = 'USUBJID',all.x = T)
+
+
+```
+
+
 
 ### Skin issues
 
@@ -43,29 +140,209 @@ load('RData/sa_chagas.RData')
 my_terms = c('erythem*','papules','prurit*',
              'itch*','dermatit*','rash','urtic*','skin',
              'dermat*','desquamat*','scratch*')
-ind= union(grep(pattern = paste(my_terms, collapse = '|'),
-                x = sa_chagas$SATERM,ignore.case = T), 
-           which(sa_chagas$SADECOD %in% 'Itching','Urticaria','Eruption of skin'))
-sa_chagas = sa_chagas[ind, ] %>%
+ind = union(grep(pattern = paste(my_terms, collapse = '|'),
+                 x = sa_chagas$SATERM,ignore.case = T), 
+            which(sa_chagas$SADECOD %in% 'Itching','Urticaria','Eruption of skin'))
+
+sa_chagas_skin = sa_chagas[ind, ] %>%
   group_by(USUBJID) %>%
   mutate(start_skin_issue = min(SASTDY),
-         issues = paste(SATERM, collapse = '-')) %>%
-  distinct(USUBJID, .keep_all = T)
+         issues = paste(SATERM, collapse = '-'),
+         N_reported_SAEs = length(SATERM)) %>%
+  distinct(USUBJID, .keep_all = T) %>%
+  select(USUBJID,STUDYID,N_reported_SAEs,ARM,start_skin_issue)
+sa_chagas_skin = merge(sa_chagas_skin, summary_dat[,c('USUBJID','STUDYID','ARM')],
+                       by = c('USUBJID','STUDYID','ARM'), all = T)%>%
+  ungroup()%>%
+  mutate(N_reported_SAEs = ifelse(is.na(N_reported_SAEs),0,N_reported_SAEs),
+         ARM2 = (case_when(
+           ARM == "PLACEBO" ~ 'Placebo',
+           ARM %in% c('BNZ 150MG 4W','BNZ 150MG 4W + E1224 300MG 8W') ~ '150mg-4wks',
+           ARM == "BNZ 300MG 4W" ~ '300mg-4wks',
+           ARM == "BNZ 300MG 2W" ~ '300mg-2wks',
+           ARM == "BNZ 300MG 8W" ~ '300mg-8wks',
+           ARM == "BNZ 300MG/WK + E1224 300MG 8W" ~ '300mg-weekly',
+           ARM %in% c('FEX 600MG 3D + 1200MG 4D','FEX 1200MG 3D','FEX 600MG 10D') ~ 'Fex',
+           ARM %in% c('E1224 400MG 4W','E1224 400MG 8W','E1224 200MG 8W') ~ 'E1224 mono',
+           T ~ ARM)),
+         ARM2 = 
+           factor(ARM2,
+                  levels = c('Placebo','150mg-4wks','300mg-2wks',
+                             '300mg-4wks','300mg-8wks','300mg-weekly',
+                             'Fex','E1224 mono')))
+levels(sa_chagas_skin$ARM2)
+
+mod=glm(N_reported_SAEs ~ ARM2, family = poisson, data = sa_chagas_skin)
+summary(mod)
+
+m1 <- zeroinfl(N_reported_SAEs ~ ARM2, data = sa_chagas_skin)
+summary(m1)
+
+m2 = glm(N_reported_SAEs>0 ~ ARM2, family = binomial, data = sa_chagas_skin)
+summary(m2)
+
+
+
 ```
 
 
 ```{r bendita}
-sa_chagas_ben = sa_chagas%>%filter(STUDYID=='BENDITA')
-  table(sa_chagas_ben$ARM)
-  unique(sa_chagas_ben$SATERM)
+sa_chagas_ben = sa_chagas_skin%>%filter(STUDYID=='BENDITA')
+table(sa_chagas_ben$ARM2, sa_chagas_ben$N_reported_SAEs>0)
+
+m3 = glm(as.numeric(N_reported_SAEs>0) ~ ARM2, family = binomial, data = sa_chagas_ben)
+summary(m3)
+
+```
+
+
+## Lab data
+
+
+### Neutropenia
+
+```{r neutropenia, fig.width=10, fig.height=10}
+ids_neutropenia = unique(lb_chagas$USUBJID[which(lb_chagas$Neutrophils < 1000)])
+# days on which this occured relative to randomisation
+lb_chagas$Day_frm_rand[which(lb_chagas$Neutrophils < 1000)]
+
+summary_dat$ARM[summary_dat$USUBJID%in%ids_neutropenia]
+summary_dat$STUDYID[summary_dat$USUBJID%in%ids_neutropenia]
+summary_dat$BNZ_total_dose[summary_dat$USUBJID%in%ids_neutropenia]
+
+ids_bnz_neut=summary_dat$USUBJID[summary_dat$USUBJID%in%ids_neutropenia & summary_dat$BNZ_total_dose>0]
+
+
+par(mfrow=c(3, 3), las=1, family='serif',cex.lab=1.5, cex.axis=1.5)
+for(id in ids_neutropenia){
+  lb_chagas_id = lb_chagas %>% filter(!is.na(Neutrophils), USUBJID==id)
+  plot(lb_chagas_id$Day_frm_rand, log10(lb_chagas_id$Neutrophils), type='b',
+       panel.first=grid(), xlim = c(-20, 60), 
+       ylim = log10(c(300, 10000)),
+       ylab='', xlab='Day', yaxt='n')
+  title(unique(lb_chagas_id$ARM))
+  abline(h=3, lwd=2,lty=2, col='red')
+  abline(v=0,lwd=2)
+  abline(h=log10(500), lwd=2, col='red')
+  axis(2, at = log10(c(500, 1000, 3000, 10000)), 
+       labels = c(500, 1000, 3000, 10000))
+}
+
+
+par(mfrow=c(3, 3), las=1, family='serif')
+for(id in ids_neutropenia){
+  lb_chagas_id = lb_chagas %>% filter(!is.na(Platelets), USUBJID==id)
+  plot(lb_chagas_id$Day_frm_rand, log10(lb_chagas_id$Platelets), type='b',
+       panel.first=grid(), xlim = c(-30, 90), 
+       ylim = log10(range(lb_chagas$Platelets, na.rm = T)),
+       ylab='Platelets log10', xlab='Day')
+  title(unique(lb_chagas_id$ARM))
+  abline(h=3, lwd=2,lty=2, col='red')
+  abline(h=log10(500), lwd=2, col='red')
+}
+
+
+par(mfrow=c(3, 3), las=1, family='serif')
+for(id in ids_neutropenia){
+  lb_chagas_id = lb_chagas %>% filter(!is.na(Hemoglobin), USUBJID==id)
+  plot(lb_chagas_id$Day_frm_rand, lb_chagas_id$Hemoglobin, type='b',
+       panel.first=grid(), xlim = c(0, 60), 
+       ylim = c(11,17),
+       ylab='Hemoglobin', xlab='Day')
+  title(unique(lb_chagas_id$ARM))
+  abline(v=0,lwd=2)
+}
+
+par(mfrow=c(1,1))
+# linear imputation
+imputed_neutrophils = array(dim = c(nrow(summary_dat), 90))
+rownames(imputed_neutrophils)= as.character(summary_dat$USUBJID)
+
+for(id in as.character(summary_dat$USUBJID)){
+  lb_chagas_id = lb_chagas %>% filter(!is.na(Neutrophils), USUBJID==id)
+  f_neut = approxfun(x = lb_chagas_id$Day_frm_rand,
+                     y = log10(lb_chagas_id$Neutrophils))
+  imputed_neutrophils[id, ] = f_neut(1:90)
+}
+ids_bnz_high = unique(summary_dat$USUBJID[which( summary_dat$BNZ_total_dose>5000)])
+ids_bnz_low = unique(summary_dat$USUBJID[which(summary_dat$BNZ_total_dose<=4500 & summary_dat$BNZ_total_dose>0)])
+ids_bnz_wkly = unique(summary_dat$USUBJID[which(summary_dat$ARM=='BNZ 300MG/WK + E1224 300MG 8W')])
+
+
+ids_plcebo = unique(summary_dat$USUBJID[which(summary_dat$ARM=='PLACEBO')])
+
+
+ind = which(rownames(imputed_neutrophils) %in% ids_bnz_high)
+plot(1:90, 
+     apply(imputed_neutrophils[ind, ], 2, mean, na.rm=T),
+     type='l',lwd=3,col='darkred',
+     ylim = log10(c(2500, 3500)), xlab='Days',
+     yaxt='n', ylab='', panel.first = grid())
+axis(2, at = log10(c( 2000, 2500, 3000, 4000)), 
+     labels = c( 2000, 2500, 3000, 4000))
+
+ind = which(rownames(imputed_neutrophils) %in% ids_bnz_low)
+lines(1:90, apply(imputed_neutrophils[ind, ], 2, mean, na.rm=T),type='l',lwd=3,col='darkgreen')
+
+ind = which(rownames(imputed_neutrophils) %in% ids_bnz_wkly)
+lines(1:90, apply(imputed_neutrophils[ind, ], 2, mean, na.rm=T),type='l',lwd=3,col='orange')
+
+
+ind = which(rownames(imputed_neutrophils) %in% ids_plcebo)
+lines(1:90, apply(imputed_neutrophils[ind, ], 2, mean, na.rm=T),type='l',lwd=3,col='purple')
 ```
 
 
 
 
+```{r}
+in_chagas_neut = merge(in_chagas, pcr_chagas[!duplicated(pcr_chagas$USUBJID),c('USUBJID','ARM')], by='USUBJID',all.x = T) %>% filter(USUBJID %in%ids_bnz_neut, INTRT == 'BENZNIDAZOLE')%>%
+  arrange(USUBJID, IN_Day_frm_rand)
 
-```{r e1224}
-sa_chagas_e1224 = sa_chagas%>%filter(STUDYID=='E1224')
-  table(sa_chagas_e1224$ARM)
-  unique(sa_chagas_e1224$SATERM)
 ```
+
+
+## AST/ALT
+
+
+```{r}
+lb_chagas = lb_chagas %>% group_by(USUBJID) %>%
+  mutate(
+    Baseline_ALT = mean(`Alanine Aminotransferase`[Day_frm_rand<=0],na.rm = T),
+    Baseline_AST = mean(`Aspartate Aminotransferase`[Day_frm_rand<=0],na.rm = T)
+  ) %>% group_by(USUBJID, Day_frm_rand) %>%
+  mutate(
+    ALT_log2_fold_change = log2(`Alanine Aminotransferase`/Baseline_AST),
+    AST_log2_fold_change = log2(`Aspartate Aminotransferase`/Baseline_AST)
+  )
+
+lb_chagas = lb_chagas%>%filter(STUDYID == 'BENDITA')
+
+my_cuts = c(0,1, 20, 40, 400)
+
+lb_chagas$Bnz_level = as.numeric(cut(lb_chagas$BNZ_total_dose_mg_kg, breaks = my_cuts,include.lowest = T))
+unique(lb_chagas$Bnz_level)
+table( lb_chagas$ARM,lb_chagas$Bnz_level)
+cols = (RColorBrewer::brewer.pal(11, 'RdYlBu')[c(1, 4,8, 11)])
+lb_chagas$Bnz_col = cols[lb_chagas$Bnz_level]
+
+lb_chagas$USUBJID[which(lb_chagas$AST_log2_fold_change>3)]
+lb_chagas$ARM[which(lb_chagas$AST_log2_fold_change>3)]
+
+lb_chagas$USUBJID[which(lb_chagas$ALT_log2_fold_change>4)]
+lb_chagas$ARM[which(lb_chagas$ALT_log2_fold_change>4)]
+
+
+plot(jitter(lb_chagas$Day_frm_rand), lb_chagas$ALT_log2_fold_change, 
+     col= adjustcolor(lb_chagas$Bnz_col,.5), xlim = c(0, 60),
+     panel.first=grid(), ylab = 'Change relative to baseline',yaxt='n')
+axis(2, at = -2:4, labels = c(2^(-2:4)))
+
+
+plot(jitter(lb_chagas$Day_frm_rand), lb_chagas$AST_log2_fold_change, 
+     col= adjustcolor(lb_chagas$Bnz_col,.5), xlim = c(0, 60),
+     panel.first=grid(), ylab = 'Change relative to baseline',yaxt='n')
+axis(2, at = -2:4, labels = c(2^(-2:4)))
+
+```
+

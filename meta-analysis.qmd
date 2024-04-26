@@ -24,7 +24,7 @@ library(survminer)
 source('functions.R')
 # source('make_adam.R')
 
-RE_RUN_STAN_MODEL=F
+RE_RUN_STAN_MODEL=T
 ```
 
 Theoretical considerations around sensitivity
@@ -44,9 +44,11 @@ vals = c(0.0002, 0.001, 0.01, .1, 1, 10)
 axis(1, at = log10(vals),labels = vals)
 abline(h=0.5,lty=2)
 # 5 independent draws
-lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^5,lty=2,lwd=3,col='darkblue')
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^5,
+      lty=2,lwd=3,col='darkblue')
 # single draw
-lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas)),lty=3,lwd=2)
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas)),
+      lty=3,lwd=2)
 ```
 
 ## Load data
@@ -58,47 +60,7 @@ load('RData/pcr_chagas.RData')
 # pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)
 ```
 
-## Tolerability
 
-```{r treatment_discont, fig.height=8, fig.width=8}
-bendita_dis = pcr_chagas %>% filter(STUDYID=='BENDITA') %>% 
-  distinct(ID, .keep_all = T) %>%
-  mutate(
-    discont = ifelse(!is.na(time_stop),1,0),
-    paused = ifelse(!is.na(time_pause),1,0),
-    time_stop = ifelse(is.na(time_stop), 56, time_stop),
-    time_stop = ifelse(time_stop>56, 56, time_stop),
-    time_pause = ifelse(is.na(time_pause), 56, time_pause),
-    time_pause = ifelse(time_pause>56, 56, time_pause),
-    ARM2 = case_when(
-      ARM %in% c('BNZ 150MG 4W','BNZ 150MG 4W + E1224 300MG 8W') ~ '150mg-4wks',
-      ARM == "BNZ 300MG 4W" ~ '300mg-4wks',
-      ARM == "BNZ 300MG 2W" ~ '300mg-2wks',
-      ARM == "BNZ 300MG 8W" ~ '300mg-8wks',
-      ARM == "BNZ 300MG/WK + E1224 300MG 8W" ~ '300mg-weekly',
-      ARM == "PLACEBO" ~ 'Placebo')
-    )
-
-s1 <- survfit(Surv(time_stop, discont) ~ ARM2, data = bendita_dis)
-p1=ggsurvplot(s1, data = bendita_dis, risk.table = F,fun = function(x) 1-x,
-              title='Stopping treatment',ylim=c(0,0.3),legend='top')
-
-s1 <- survfit(Surv(time_pause, paused) ~ ARM2, data = bendita_dis)
-p2=ggsurvplot(s1, data = bendita_dis, risk.table = F,fun = function(x) 1-x,
-              title='Pausing treatment',ylim=c(0,0.5),legend='none')
-p1$plot
-p2$plot
-# 
-# e1224_dis = pcr_chagas %>% filter(STUDYID=='E1224') %>% 
-#   distinct(ID, .keep_all = T) %>%
-#   mutate(
-#     discont_paused = ifelse(!is.na(time_stop),1,0),
-#     time_stop = ifelse(is.na(time_stop), 56, time_stop),
-#     time_stop = ifelse(time_stop>56,56, time_stop))
-# s1 <- survfit(Surv(time_stop, discont_paused) ~ ARMCD, data = e1224_dis)
-# ggsurvplot(s1, data = bendita_dis, risk.table = F,fun = function(x) 1-x)
-
-```
 
 ## Plot PCR data
 
@@ -139,7 +101,7 @@ pcr_chagas = pcr_chagas %>%
   mutate(
     N_PCRs_sample = length(CT),
     N_pos_sample = sum(CT<40)) %>%
-  group_by(ID,VISIT) %>%
+  group_by(ID,VISIT) %>% arrange(ID, Day_frm_rand, MBREFID, MBGRPID) %>%
   mutate(PCR_number = 1:length(CT)) %>%
   ungroup() %>% 
   filter(!(STUDYID=='E1224' & PCR_number>4 & VISIT=='Screening')) %>%
@@ -156,18 +118,20 @@ pcr_chagas = pcr_chagas %>%
   ungroup() %>%
   filter(PCR_number<=9) %>%
   arrange(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,
-          ID, VISIT_numeric, MBREFID, MBGRPID)
+          ID, VISIT_numeric, PCR_number)
 
 dat_summary = pcr_chagas %>% distinct(ID, .keep_all = T)
 table(dat_summary$STUDYID)
-table(dat_summary$ARM,dat_summary$STUDYID)
+table(dat_summary$ARM, dat_summary$STUDYID)
 table(dat_summary$N_FUP_VISITS)
+
+table(dat_summary$ARM, dat_summary$BNZ_total_days)
 ```
 
 ```{r pcr_plot, fig.width=15, fig.height=12}
-my_breaks = c(10, 34, 36, 38, 39.99999,40)
-my_breaks_legend = c('<34','34-36','36-38','38-40','>=40')
-my_cols = c(brewer.pal(4, 'RdYlBu'),brewer.pal(9, 'Pastel1')[9])
+my_breaks = c(10, 30, 34, 36, 38, 39.99999,40)
+my_breaks_legend = c('<30','30-34','34-36','36-38','38-40','>=40')
+my_cols = c(brewer.pal(11, 'RdYlBu')[c(1,2,4,9,11)],brewer.pal(9, 'Pastel1')[9])
 
 for(ss in unique(pcr_chagas$STUDYID)){
   pcr_chagas_ss=pcr_chagas %>% filter(STUDYID==ss)
@@ -198,7 +162,7 @@ pcr_chagas_ss=pcr_chagas %>%
          VISIT_numeric %in% visits_overlap)
 pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
 
-par(mar=c(5,10,0.5,0.5))
+par(mar=c(5,5,0.5,0.5))
 xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
 ind_y = which(!duplicated(xx2$STUDYID))
 plot_pcr_matrix(pcr_mat = pcr_mat,
@@ -277,27 +241,31 @@ plot_pcr_matrix(pcr_mat = pcr_mat,
 
 ```
 
-Order individuals by how many days BNZ they got
+Order individuals by how many days BNZ and by total mg/kg dose
 
-```{r days_bnz}
+```{r days_bnz, fig.width=10, fig.height=8}
 pcr_chagas_ss = pcr_chagas %>%
-  filter(FOS_total_dose==0, FEX_total_dose==0, 
-         STUDYID=='BENDITA',BNZ_total_days<=4*7,
-         N_FUP_VISITS>2) %>%
-  arrange(desc(BNZ_total_days), Mean_CT_inv_baseline, Day_frm_rand)
+  filter(BNZ_total_days<=14,BNZ_total_days>0) %>%
+  arrange(desc(BNZ_total_dose_mg_kg),desc(BNZ_total_days), 
+          Mean_CT_inv_baseline, Day_frm_rand)
 pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
 
-par(mar=c(3,3,0.5,0.5))
+pcr_chagas_ss_summary = pcr_chagas_ss %>% distinct(USUBJID,.keep_all = T)%>%
+  select(USUBJID, STUDYID, ARM, BNZ_total_days, BNZ_total_dose_mg_kg, weight, BNZ_total_dose)
+
+par(mar=c(3,3,0.5,4),las=1)
 xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
 ind_y = which(!duplicated(xx2$BNZ_total_days))
 plot_pcr_matrix(pcr_mat = pcr_mat,
                 my_breaks = my_breaks, 
                 my_break_legend = my_breaks_legend,
                 my_cols = my_cols,
-                arm_labels = unique(pcr_chagas_ss$BNZ_total_days),
-                h_lines_ind = ind_y[-1]-0.5,
-                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
-                cex_y_lab = .4, plot_legend = F)
+                arm_labels = round(pcr_chagas_ss_summary$BNZ_total_dose_mg_kg,1),
+                h_lines_ind = NULL,
+                y_lab_ind = 1:nrow(pcr_chagas_ss_summary),
+                cex_y_lab = .7, 
+                plot_legend = F)
+axis(4, at = 1:nrow(pcr_chagas_ss_summary), labels = pcr_chagas_ss_summary$BNZ_total_days, cex.axis=.7)
 ```
 
 Total dose of fexinidazole
@@ -494,10 +462,10 @@ fit to Bendita data first to check if working
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
-         VISIT_numeric>EOT,VISIT_numeric>30,
+         VISIT_numeric>EOT,ARM!='PLACEBO',
          STUDYID=='BENDITA',
-         !USUBJID %in% c('681'))
-        # !USUBJID %in% c('594','681','342')) 
+         #!USUBJID %in% c('681')
+         !USUBJID %in% c('594','681','342')) 
 data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec = PCR_spec)
 
 if(RE_RUN_STAN_MODEL){
@@ -615,7 +583,11 @@ pcr_chagas_ss = pcr_chagas %>%
          !USUBJID %in% c('594','681','342')) %>%
   arrange(ARM)
 
-data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec=PCR_spec)
+data_list_stan=
+  make_stan_dataset_model_v2(pcr_chagas_ss,
+                             PCR_spec=PCR_spec,
+                             p_1_beta_prior = .5,
+                             p_2_beta_prior = 2)
 
 if(RE_RUN_STAN_MODEL){
   fit_all <- mod$sample(
