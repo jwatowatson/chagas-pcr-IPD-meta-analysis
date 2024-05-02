@@ -290,57 +290,62 @@ plot_pcr_matrix = function(pcr_mat, my_breaks, my_break_legend, my_cols,
 
 
 
-make_stan_dataset_model_v2 = function(pcr_chagas_ss,x_covs = NULL, PCR_spec=1,
-                                      p_1_beta_prior=.5, p_2_beta_prior=2){
-  
-  pcr_chagas_ss = pcr_chagas_ss %>% arrange(ARM, ID, Day_frm_rand)
-  pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
-  
-  par(mar=c(2,7,0.5,0.5))
-  xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
-  ind_y = which(!duplicated(xx2$ARM))
-  plot_pcr_matrix(pcr_mat = pcr_mat,
-                  my_breaks = my_breaks, 
-                  my_break_legend = my_breaks_legend,
-                  my_cols = my_cols,
-                  arm_labels = unique(pcr_chagas_ss$ARM),
-                  h_lines_ind = ind_y[-1]-0.5,
-                  y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
-                  cex_y_lab = .7,
-                  plot_legend = F)
-  
-  pcr_summary = pcr_chagas_ss %>%
-    distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
-    ungroup() %>% 
-    mutate(
-      ID_numeric = as.numeric(as.factor(ID)),
-      ARM_numeric = as.numeric(as.factor(ARM))) %>%
-    arrange(Mean_CT_inv_baseline, ID) %>% group_by(ID) %>%
-    mutate(
-      N_fup_samples = length(N_PCRs_sample)
-    )
-  pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
-  if(!is.null(x_covs)) {
-    X_matrix = model.matrix(~. -1, data = pcr_unique[, x_covs, drop=F])
-  } else {
-    X_matrix = array(0, dim = c(nrow(pcr_unique),1))
+make_stan_dataset_model_v2 = 
+  function(pcr_chagas_ss,x_covs = NULL, 
+           PCR_spec=1,
+           p_1_beta_prior=.5, 
+           p_2_beta_prior=2){
+    
+    pcr_chagas_ss = pcr_chagas_ss %>% arrange(ARM, ID, Day_frm_rand)
+    pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+    
+    par(mar=c(2,7,0.5,0.5))
+    xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID,.keep_all = T)
+    ind_y = which(!duplicated(xx2$ARM))
+    plot_pcr_matrix(pcr_mat = pcr_mat,
+                    my_breaks = my_breaks, 
+                    my_break_legend = my_breaks_legend,
+                    my_cols = my_cols,
+                    arm_labels = unique(pcr_chagas_ss$ARM),
+                    h_lines_ind = ind_y[-1]-0.5,
+                    y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                    cex_y_lab = .7,
+                    plot_legend = F)
+    
+    pcr_summary = pcr_chagas_ss %>%
+      distinct(ID, Day_frm_rand, MBREFID, .keep_all = T) %>%
+      ungroup() %>% 
+      mutate(
+        ID_numeric = as.numeric(as.factor(ID)),
+        ARM_numeric = as.numeric(as.factor(ARM))) %>%
+      arrange(Mean_CT_inv_baseline, ID) %>% group_by(ID) %>%
+      mutate(
+        N_fup_samples = length(N_PCRs_sample)
+      )
+    pcr_unique = pcr_summary %>% distinct(ID, .keep_all = T)
+    if(!is.null(x_covs)) {
+      X_matrix = model.matrix(~. -1, data = pcr_unique[, x_covs, drop=F])
+    } else {
+      X_matrix = array(0, dim = c(nrow(pcr_unique),1))
+    }
+    table(pcr_unique$N_fup_samples, pcr_unique$ARM)
+    ind_not_dup = which(!duplicated(pcr_summary$ID))
+    
+    print(cbind(unique(pcr_summary$ARM), unique(pcr_summary$ARM_numeric)))
+    data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
+                          n_samples = nrow(pcr_summary),
+                          Kmax = max(pcr_summary$N_PCRs_sample),
+                          K_arms = length(unique(pcr_summary$ARM)),
+                          trt_group = pcr_summary$ARM_numeric[ind_not_dup],
+                          K_cov=ncol(X_matrix),
+                          X=X_matrix,
+                          y_pos = pcr_summary$N_pos_sample,
+                          K_FUP = pcr_summary$N_PCRs_sample,
+                          ind_start = ind_not_dup,
+                          ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
+                          PCR_specificity=PCR_spec,
+                          p_1_beta_prior=p_1_beta_prior,
+                          p_2_beta_prior=p_2_beta_prior)
+    
+    return(data_list_stan)
   }
-  table(pcr_unique$N_fup_samples, pcr_unique$ARM)
-  ind_not_dup = which(!duplicated(pcr_summary$ID))
-  data_list_stan = list(n_id = length(unique(pcr_summary$ID)), 
-                        n_samples = nrow(pcr_summary),
-                        Kmax = max(pcr_summary$N_PCRs_sample),
-                        K_arms = length(unique(pcr_summary$ARM)),
-                        trt_group = pcr_summary$ARM_numeric[ind_not_dup],
-                        K_cov=ncol(X_matrix),
-                        X=X_matrix,
-                        y_pos = pcr_summary$N_pos_sample,
-                        K_FUP = pcr_summary$N_PCRs_sample,
-                        ind_start = ind_not_dup,
-                        ind_end = c((ind_not_dup-1)[-1], nrow(pcr_summary)),
-                        PCR_specificity=PCR_spec,
-                        p_1_beta_prior=p_1_beta_prior,
-                        p_2_beta_prior=p_2_beta_prior)
-  
-  return(data_list_stan)
-}

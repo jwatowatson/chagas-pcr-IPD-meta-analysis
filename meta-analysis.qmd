@@ -60,8 +60,6 @@ load('RData/pcr_chagas.RData')
 # pcr_chagas = merge(pcr_chagas, ID_map, by='USUBJID', all=T)
 ```
 
-
-
 ## Plot PCR data
 
 Triplicates
@@ -114,11 +112,14 @@ pcr_chagas = pcr_chagas %>%
   mutate(
     Percent_pos_baseline = unique(percent_pos[VISIT=='Screening']),
     Mean_CT_inv_baseline = 40-mean(CT_mean[VISIT=='Screening']),
-    N_FUP_VISITS = length(unique(VISIT[Day_frm_rand>EOT]))) %>%
+    N_FUP_VISITS = length(unique(VISIT[Day_frm_rand>EOT])),
+    Day_last_Visit = max(MBDY)) %>%
   ungroup() %>%
   filter(PCR_number<=9) %>%
   arrange(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,
           ID, VISIT_numeric, PCR_number)
+
+dat_summary_visits = pcr_chagas %>% distinct(ID, MBDY, .keep_all = T)
 
 dat_summary = pcr_chagas %>% distinct(ID, .keep_all = T)
 table(dat_summary$STUDYID)
@@ -454,6 +455,25 @@ mod <- cmdstan_model(file)
 PCR_spec = 1
 ```
 
+how often do 2+ come from the same sample?
+
+```{r}
+double_pos = pcr_chagas %>%
+  filter(!is.na(CT))%>%
+  group_by(USUBJID, Day_frm_rand) %>%
+  mutate(MBREFID_perm = gtools::permute(MBREFID),
+         N_pos = sum(CT<40)) %>% 
+  filter(N_pos==3) %>%
+  mutate(N_blood_draws = length(unique(MBREFID[which(CT<40)])),
+         N_blood_draws_perm = length(unique(MBREFID_perm[which(CT<40)]))) %>%
+  distinct(USUBJID, Day_frm_rand, .keep_all = T)
+
+table(double_pos$N_pos)
+table(double_pos$N_blood_draws)
+table(double_pos$N_blood_draws_perm)
+
+```
+
 ### BENDITA fit
 
 fit to Bendita data first to check if working
@@ -462,11 +482,12 @@ fit to Bendita data first to check if working
 pcr_chagas_ss = pcr_chagas %>% 
   filter(!is.na(N_pos_sample), 
          !is.na(N_PCRs_sample), 
-         VISIT_numeric>EOT,ARM!='PLACEBO',
+         VISIT_numeric>EOT, ARM!='PLACEBO',
          STUDYID=='BENDITA',
          #!USUBJID %in% c('681')
          !USUBJID %in% c('594','681','342')) 
-data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,PCR_spec = PCR_spec)
+data_list_stan=make_stan_dataset_model_v2(pcr_chagas_ss,
+                                          PCR_spec = PCR_spec)
 
 if(RE_RUN_STAN_MODEL){
   fit_ben <- mod$sample(
@@ -489,7 +510,7 @@ gg_cure=mcmc_intervals(fit_ben$draws(c("p_1")))+
                                 "p_1[4]" ="BNZ 300 4wks",
                                 "p_1[2]" ="BNZ 150 4wks + E1224",
                                 "p_1[6]" ="BNZ 300 wkly + E1224",
-                                "p_1[5]" ="BNZ 300 8 wks"))+
+                                "p_1[5]" ="BNZ 300 8wks"))+
   ggtitle('Probability of cure')+xlim(0,1)+theme_minimal()
 gg_sample=mcmc_intervals(fit_ben$draws(c("p_2")))+
   ggplot2::scale_y_discrete(labels =
@@ -499,7 +520,7 @@ gg_sample=mcmc_intervals(fit_ben$draws(c("p_2")))+
                                 "p_2[4]" ="BNZ 300 4wks",
                                 "p_2[2]" ="BNZ 150 4wks + E1224",
                                 "p_2[6]" ="BNZ 300 wkly + E1224",
-                                "p_2[5]" ="BNZ 300 8 wks"))+
+                                "p_2[5]" ="BNZ 300 8wks"))+
   ggtitle('Probability of sampling parasites')+xlim(0,1)+theme_minimal()
 grid.arrange(gg_cure, gg_sample,nrow=2)
 mcmc_intervals(fit_ben$draws(c("q")))

@@ -21,7 +21,7 @@ data {
 parameters {
   vector<lower=0,upper=1>[K_arms] p_1; // probability of full cure
   vector<lower=0,upper=1>[K_arms] p_2; // probability of sampling parasites if not fully cured
-  real<lower=0,upper=1> q; // sensitivity of individual PCR
+  real<lower=0,upper=1> q;             // sensitivity of individual PCR
 }
 
 
