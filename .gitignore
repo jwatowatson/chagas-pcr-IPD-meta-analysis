@@ -4,6 +4,7 @@ RData/*
 
 # model fits
 Rout/*
+stan_out/*
 
 # History files
 .Rhistory
