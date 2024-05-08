@@ -1,5 +1,5 @@
 ---
-title: "Chagas Meta-analysis"
+title: "Chagas Meta-analysis: benznidazole and fosravuconazole"
 author: "James Watson"
 format: html
 editor: visual

@@ -1,9 +1,14 @@
 # This function makes an ADAM dataset
-chagas_adam = function(dm_chagas, ds_chagas, in_chagas, mb_chagas, ts_chagas,vs_chagas,sa_chagas, lb_chagas){
+chagas_adam = function(dm_chagas, ds_chagas, 
+                       in_chagas, mb_chagas, 
+                       ts_chagas, vs_chagas,
+                       sa_chagas, lb_chagas,
+                       study_remove=NULL){
   
   # only select individuals who were randomised
   dm_chagas = dm_chagas %>% 
-    filter(ARM != "NOT PROVIDED IN THE CONTRIBUTED DATASET") %>%
+    filter(ARM != "NOT PROVIDED IN THE CONTRIBUTED DATASET",
+           !STUDYID %in% study_remove) %>%
     mutate(
       ARM = gsub(pattern='BENZNIDAZOLE',replacement='BNZ',x=ARM),
       ARM = gsub(pattern='FOSRAVUCONAZOLE',replacement='E1224',x=ARM),
@@ -238,7 +243,7 @@ make_matrix_pcr = function(pcr_dat, N_max_PCR=9){
   pcr_dat = pcr_dat %>% filter(PCR_number<=N_max_PCR)
   
   K=length(unique(pcr_dat$VISIT_trans)) * N_max_PCR
-  N=length(unique(pcr_dat$ID))
+  N=length(unique(pcr_dat$USUBJID))
   
   pcr_dat$PCR_name = apply(pcr_dat[, c('PCR_number','VISIT_trans')], 1, function(x) paste(x[1],x[2], sep = '_'))
   pcr_mat = array(NA, dim=c(N,K))
@@ -247,11 +252,11 @@ make_matrix_pcr = function(pcr_dat, N_max_PCR=9){
   colnames(pcr_mat) = apply(expand.grid(1:N_max_PCR, unique(pcr_name_vals$VISIT_trans)), 1, 
                             function(x) paste(x[1], x[2],sep = '_'))
   # print(colnames(pcr_mat))
-  rownames(pcr_mat) = unique(pcr_dat$ID)
+  rownames(pcr_mat) = unique(pcr_dat$USUBJID)
   
-  for(id in unique(pcr_dat$ID)){
-    ind = which(pcr_dat$ID==id)
-    pcr_mat[id, pcr_dat$PCR_name[ind]] = pcr_dat$CT[ind]
+  for(id in unique(pcr_dat$USUBJID)){
+    ind = which(pcr_dat$USUBJID==id)
+    pcr_mat[as.character(id), pcr_dat$PCR_name[ind]] = pcr_dat$CT[ind]
   }
   return(pcr_mat)
   
@@ -346,6 +351,122 @@ make_stan_dataset_model_v2 =
                           PCR_specificity=PCR_spec,
                           p_1_beta_prior=p_1_beta_prior,
                           p_2_beta_prior=p_2_beta_prior)
+    
+    return(data_list_stan)
+  }
+
+
+
+
+make_stan_dataset_model_quant = 
+  function(pcr_chagas_ss_input,
+           p_1_beta_prior=.5,
+           plot_data=T)
+  {
+    
+    pcr_chagas_ss = pcr_chagas_ss_input %>%
+      group_by(ID_numeric, Day_frm_rand, MBREFID) %>%
+      mutate(
+        # unique Blood Sample ID
+        Sample_ID = paste(c(unique(ID_numeric),unique(Day_frm_rand),unique(MBREFID)),collapse = '_'),
+        CT_mean = mean(CT) # Mean CT value from that blood sample
+      ) %>%
+      group_by(ID_numeric, Day_frm_rand) %>%
+      mutate(
+        # make a unique Timepoint ID
+        Timepoint_ID = paste(c(unique(ID_numeric),unique(Day_frm_rand)),collapse = '_')
+      ) %>%
+      select(ID_numeric,USUBJID,Sample_ID,MBREFID,Baseline_CT,VISIT_trans,VISIT_numeric,
+             VISIT,CT,Day_frm_rand,ARM,EOT,PCR_number,CT_mean,
+             N_samples, N_PCRs_sample,Timepoint_ID,Sample_No,N_pos, N_PCRs)
+    
+    if(plot_data){
+      pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+      
+      # plot data used for model fitting
+      par(mar=c(2,7,0.5,0.5))
+      xx2 = pcr_chagas_ss %>% ungroup %>% distinct(ID_numeric,.keep_all = T)
+      trt = as.numeric(xx2$ARM)-1
+      
+      ind_y = which(!duplicated(xx2$ARM))
+      plot_pcr_matrix(pcr_mat = pcr_mat,
+                      my_breaks = my_breaks, 
+                      my_break_legend = my_breaks_legend,
+                      my_cols = my_cols,
+                      arm_labels = unique(pcr_chagas_ss$ARM),
+                      h_lines_ind = ind_y[-1]-0.5,
+                      y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2,
+                      cex_y_lab = .7,
+                      plot_legend = F)
+    }
+    # select unique timepoints
+    pcr_timepoints = pcr_chagas_ss %>% 
+      distinct(ID_numeric, Day_frm_rand,.keep_all = T)
+    
+    treatment = as.numeric(pcr_timepoints$Day_frm_rand>pcr_timepoints$EOT)
+    print(table(pcr_timepoints$ARM, treatment))
+    
+    Smax=max(pcr_chagas_ss$N_samples)
+    Kmax=max(pcr_chagas_ss$N_PCRs_sample)
+    
+    # number of blood samples per timepoint
+    j_samples = pcr_timepoints$N_samples
+    
+    # number of PCR replicates per blood sample
+    k_replicates=pcr_chagas_ss %>% 
+      pivot_wider(id_cols = c(ID_numeric, Day_frm_rand), 
+                  names_from = Sample_No, 
+                  values_from = N_PCRs_sample, values_fn = max)
+    k_replicates=k_replicates[, 3:5]
+    k_replicates[is.na(k_replicates)]=0
+    k_replicates=as.matrix(k_replicates)
+    
+    id_ind = pcr_timepoints$ID_numeric
+    ind_start = which(!duplicated(pcr_timepoints$ID_numeric))
+    ind_end = as.integer(c((ind_start-1)[-1], nrow(pcr_timepoints)))
+    
+    CT_obs = array(40, dim = c(nrow(pcr_timepoints),Smax,Kmax))
+    rownames(CT_obs) = pcr_timepoints$Timepoint_ID
+    
+    for(t in 1:nrow(pcr_timepoints)){
+      for(j in 1:j_samples[t]){
+        ind = which(pcr_chagas_ss$Timepoint_ID==rownames(CT_obs)[t] &
+                      pcr_chagas_ss$Sample_No==j)
+        if(length(ind)>0){
+          CT_obs[t, j, 1:length(ind)] = pcr_chagas_ss$CT[ind]
+        }
+      }
+    }
+    
+    # get summaries of number of + PCRs per timepoint
+    y_pos = pcr_timepoints$N_pos
+    K_total = pcr_timepoints$N_PCRs
+    #check number of positives is less than or equal to the number of PCRs
+    !any(y_pos > K_total)
+    
+    # record day from randomisation for each timepoint
+    t_actual = pcr_timepoints$Day_frm_rand
+    
+    data_list_stan = list(N = length(trt), 
+                          Tmax = nrow(pcr_timepoints),
+                          Smax=Smax,
+                          Kmax = Kmax,
+                          trt = trt,
+                          Trt_max=max(trt),
+                          treatment = treatment,
+                          j_samples=j_samples,
+                          k_replicates=k_replicates,
+                          CT_obs = CT_obs,
+                          y_pos = y_pos,
+                          K_total = K_total,
+                          id_ind = id_ind,
+                          ind_start = ind_start,
+                          ind_end = ind_end,
+                          p_1_beta_prior=p_1_beta_prior,
+                          baseline_CT = xx2$Baseline_CT,
+                          t_actual=t_actual,
+                          CT_blood_sample_mean = pcr_timepoints$CT_mean,
+                          pcr_chagas_ss=pcr_chagas_ss)
     
     return(data_list_stan)
   }

@@ -1,4 +1,4 @@
-# library(iddoverse)
+library(tidyverse)
 library(tibble)
 library(dplyr)
 library(kableExtra)
@@ -30,7 +30,7 @@ out=chagas_adam(dm_chagas = dm_chagas,
                 ts_chagas = ts_chagas,
                 vs_chagas = vs_chagas,
                 sa_chagas = sa_chagas,
-                lb_chagas = lb_chagas)
+                lb_chagas = lb_chagas,study_remove = 'CGBKZSR')
 
 
 pcr_chagas=out$pcr_chagas
