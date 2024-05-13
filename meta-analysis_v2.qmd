@@ -1,0 +1,822 @@
+---
+title: "Chagas Meta-analysis: benznidazole and fosravuconazole"
+author: "James Watson"
+format: html
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(cache = F, cache.comments = FALSE,
+                      echo = T, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+library(RColorBrewer)
+library(tidyverse)
+# library(cmdstanr)
+library(rstan)
+library(posterior)
+library(bayesplot)
+library(gridExtra)
+library(survival)
+library(survminer)
+
+
+source('functions.R')
+# source('make_adam.R')
+
+RE_RUN_STAN_MODEL=T
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+
+
+```
+
+Theoretical considerations around sensitivity. We assume the number of parasites in a given blood sample are Poisson distributed.
+
+```{r theoretical_sensitivity, fig.width=10}
+library(expint)
+# probability that the max of k independent poisson draws is zero is given by the incomplete
+# gamma function
+my_lambdas = seq(from=log10(1/5000), to=log10(5000/5000),length.out=100)
+par(las=1, cex.lab=1.3, cex.axis=1.3)
+# 15 independent draws
+plot(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^15,
+     type='l', panel.first=grid(), xaxt='n',
+     xlab='Parasite density per ml',
+     ylab='Probability at least one draw has at least 1 parasite',lwd=3, col='darkred')
+vals = c(0.0002, 0.001, 0.01, .1, 1, 10)
+axis(1, at = log10(vals),labels = vals)
+abline(h=0.5,lty=2)
+# 5 independent draws
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^5,
+      lty=2,lwd=3,col='darkblue')
+# single draw
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas)),
+      lty=3,lwd=2)
+```
+
+## *Load data*
+
+```{r}
+load('RData/pcr_chagas.RData')
+```
+
+## *Plot PCR data*
+
+*Triplicates*
+
+```{r heterosckedasticity, fig.height=8, fig.width=12}
+pcr_chagas = pcr_chagas %>% 
+  group_by(USUBJID, Day_frm_rand, MBREFID) %>%
+  mutate(
+    CT = ifelse(CT<25, NA, CT),
+    repeats = sum(!is.na(CT)),
+    CT_mean_sample = mean(CT,na.rm = T),
+    CT_sd_sample = sd(CT,na.rm=T),
+    n_40 = sum(CT==40,na.rm = T)
+  ) %>% ungroup() %>%
+  filter(!is.na(CT))
+
+pcr_chagas_trip = pcr_chagas %>% 
+  filter(repeats==3, n_40<=3) %>%
+  distinct(USUBJID, Day_frm_rand, MBREFID, .keep_all = T)
+pcr_chagas_trip %>%
+  ggplot(aes(x=CT_mean_sample, y=CT_sd_sample,
+             color=as.factor(n_40)))+
+  geom_point()+
+  geom_smooth(data = filter(pcr_chagas_trip, n_40==0))+
+  theme_classic()+
+  theme(axis.text=element_text(size=12),
+        axis.title=element_text(size=14,face="bold"))+
+  xlab('Mean CT value across triplicates')+
+  ylab('Standard deviation of CT values')+
+  labs(color='CT=40') 
+
+```
+
+### *prep data*
+
+Define a per protocol set of individuals. 80% of dose taken or 80% of duration (day of last dose)
+
+```{r per_protocol}
+pcr_chagas = pcr_chagas %>% 
+  group_by(ARM) %>%
+  mutate(
+    BNZ_total_dose_allocated = case_when(
+      ARM=='BNZ 300MG 8W' ~ 8*7*300,
+      ARM=='BNZ 300MG 4W' ~ 4*7*300,
+      ARM=='BNZ 300MG 2W' ~ 2*7*300,
+      ARM=='BNZ 300MG/WK + E1224 300MG 8W' ~ 8*300,
+      ARM=='BNZ 150MG 4W + E1224 300MG 8W' ~ 4*7*150,
+      ARM=='BNZ 150MG 4W' ~ 4*7*150,
+      T ~ 0
+    ),
+    BNZ_total_duration_allocated = case_when(
+      ARM=='BNZ 300MG 8W' ~ 8*7,
+      ARM=='BNZ 300MG 4W' ~ 4*7,
+      ARM=='BNZ 300MG 2W' ~ 2*7,
+      ARM=='BNZ 300MG/WK + E1224 300MG 8W' ~ 8*7,
+      ARM=='BNZ 150MG 4W + E1224 300MG 8W' ~ 4*7,
+      ARM=='BNZ 150MG 4W' ~ 4*7,
+      T ~ 0
+    )
+  ) %>%
+  group_by(USUBJID) %>%
+  mutate(
+    PP_pop1 = BNZ_total_dose >= 0.8*BNZ_total_dose_allocated,
+    PP_pop2 = BNZ_total_days >= 0.8*BNZ_total_duration_allocated)
+```
+
+```{r}
+# make summaries by sample, visit and baseline values
+# MBREFID indicates the blood sample
+# MBGRPID indicates the technical replicate
+
+pcr_chagas = pcr_chagas %>% 
+  group_by(USUBJID, Day_frm_rand, MBREFID) %>%
+  mutate(
+    N_technical_replicates = 1:n()) %>%
+  ungroup() %>%
+  filter(N_technical_replicates<=3) %>%
+  mutate(N_pos_sample = sum(CT<40)) %>%
+  group_by(USUBJID,Day_frm_rand) %>% 
+  arrange(USUBJID, Day_frm_rand, MBREFID, MBGRPID) %>%
+  mutate(PCR_number = 1:n()) %>%
+  ungroup() %>% 
+  group_by(USUBJID,Day_frm_rand) %>%
+  mutate(percent_pos = sum(CT<40)/length(CT),
+         Any_Pos_40 = any(CT<40),
+         N_PCRs = max(PCR_number),
+         N_pos = sum(CT<40)) %>%
+  group_by(USUBJID) %>%
+  mutate(
+    Percent_pos_baseline = mean(CT[Day_frm_rand<=0] < 40),
+    Mean_CT_inv_baseline = 40-mean(CT[Day_frm_rand<=0]),
+    N_FUP_VISITS = length(unique(Day_frm_rand[which(Day_frm_rand>EOT)])),
+    Day_last_Visit = max(Day_frm_rand)) %>%
+  ungroup() %>%
+  filter(PCR_number<=9) %>%
+  arrange(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,
+          USUBJID, VISIT_numeric, PCR_number)
+
+screen_fails = pcr_chagas %>% filter(ARM=='FAILED SCREENING')
+pcr_chagas = pcr_chagas %>% filter(!ARM=='FAILED SCREENING')
+
+dat_summary_visits = pcr_chagas %>% distinct(USUBJID, Day_frm_rand, .keep_all = T)
+dat_summary = pcr_chagas %>% 
+  group_by(USUBJID) %>%
+  mutate(FUP_time = max(Day_frm_rand) - min(Day_frm_rand)) %>%
+  distinct(USUBJID, .keep_all = T)
+
+sum(dat_summary$FUP_time)/365
+
+table(dat_summary$ARM, dat_summary$PP_pop1)
+
+table(dat_summary$STUDYID, dat_summary$SITEID)
+mean(dat_summary$SEX=='F')
+table(dat_summary$ARM, dat_summary$STUDYID)
+table(dat_summary$N_FUP_VISITS)
+
+table(dat_summary$ARM, dat_summary$BNZ_total_days)
+```
+
+
+
+### patients failed screening
+
+```{r}
+screen_fails = screen_fails %>% group_by(USUBJID) %>%
+  mutate(N_pos = sum(CT<40),
+         N_PCRs = n()) %>%
+  distinct(USUBJID, .keep_all = T)
+table(screen_fails$STUDYID, screen_fails$N_pos==0)
+```
+
+
+
+
+```{r pcr_plot, fig.width=15, fig.height=12}
+my_breaks = c(10, 30, 34, 36, 38, 39.99999,40)
+my_breaks_legend = c('<30','30-34','34-36','36-38','38-40','>=40')
+my_cols = c(brewer.pal(11, 'RdYlBu')[c(1,2,4,9,11)],brewer.pal(9, 'Pastel1')[9])
+
+for(ss in unique(pcr_chagas$STUDYID)){
+  pcr_chagas_ss=pcr_chagas %>% filter(STUDYID==ss)
+  writeLines(sprintf('In the %s trial there are %s PCR measurements',
+                     ss,nrow(pcr_chagas_ss)))
+  pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,
+                            N_max_PCR = 9)
+  
+  writeLines(sprintf('In the pcr matrix for %s trial there are %s PCR measurements',
+                     ss,sum(!is.na(pcr_mat)) ))
+  
+  
+  par(mar=c(3,8,1,8))
+  xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+  ind_y = which(!duplicated(xx2$ARM))
+  plot_pcr_matrix(pcr_mat = pcr_mat,
+                  my_breaks = my_breaks, 
+                  my_break_legend = my_breaks_legend,
+                  my_cols = my_cols,
+                  arm_labels = unique(pcr_chagas_ss$ARM),
+                  h_lines_ind = ind_y[-1]-0.5,
+                  y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+}
+```
+
+*placebo individuals in E1224 and BENDITA studies*
+
+```{r placebos, fig.height=6, fig.width=12}
+visits_overlap = intersect(unique(pcr_chagas$VISIT_numeric[pcr_chagas$STUDYID=='BENDITA']),
+                           unique(pcr_chagas$VISIT_numeric[pcr_chagas$STUDYID=='E1224']))
+
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(ARM == 'PLACEBO',
+         VISIT_numeric %in% visits_overlap)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(5,5,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+ind_y = which(!duplicated(xx2$STUDYID))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = c('BENDITA','E1224'),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+```
+
+*two versus eight weeks*
+
+```{r two_vs_eight, fig.height=6, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(STUDYID %in% c('BENDITA'),
+         ARM %in% c('BNZ 300MG 2W',
+                    'BNZ 300MG 8W'))
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(4,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = c('BNZ 2 weeks','BNZ 8 weeks'),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+
+```
+
+*Weekly benznidazole works really well!*
+
+```{r weekly_bnz, fig.height=6, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(ARM %in% c("BNZ 300MG/WK + E1224 300MG 8W",
+                    "E1224 200MG 8W",
+                    "E1224 400MG 8W"),
+         VISIT_numeric %in% visits_overlap)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(5,8,0.5,6))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$ARM),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = ind_y + diff(c(ind_y, nrow(pcr_mat)+1))/2)
+```
+
+*BNZ 150 for 4 weeks*
+
+```{r bnz_150_4wks, fig.height=10, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(STUDYID %in% c('BENDITA'),
+         ARM %in% c('BNZ 150MG 4W'))
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(2,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$USUBJID),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = 1:nrow(pcr_mat),cex_y_lab = .7)
+
+# View(dat_summary %>% filter(USUBJID %in% c('BENDITA_466','BENDITA_594')))
+
+```
+
+*Order individuals by how many days BNZ and by total mg/kg dose*
+
+```{r days_bnz, fig.width=10, fig.height=8}
+pcr_chagas_ss = pcr_chagas %>%
+  filter(BNZ_total_days<=14,BNZ_total_days>0) %>%
+  arrange(desc(BNZ_total_dose_mg_kg),desc(BNZ_total_days), 
+          Mean_CT_inv_baseline, Day_frm_rand)
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+pcr_chagas_ss_summary = pcr_chagas_ss %>% distinct(USUBJID,.keep_all = T)%>%
+  select(USUBJID, STUDYID, ARM, BNZ_total_days, BNZ_total_dose_mg_kg, weight, BNZ_total_dose)
+
+par(mar=c(3,3,0.5,4),las=1)
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+ind_y = which(!duplicated(xx2$BNZ_total_days))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = round(pcr_chagas_ss_summary$BNZ_total_dose_mg_kg,1),
+                h_lines_ind = NULL,
+                y_lab_ind = 1:nrow(pcr_chagas_ss_summary),
+                cex_y_lab = .7, 
+                plot_legend = F)
+axis(4, at = 1:nrow(pcr_chagas_ss_summary), labels = pcr_chagas_ss_summary$BNZ_total_days, cex.axis=.7)
+```
+
+*Possible sample mix-up, this is identifiable using this graphical visualisation*
+
+```{r mix_up, fig.height=10, fig.width=12}
+pcr_chagas_ss=pcr_chagas %>% 
+  filter(STUDYID %in% c('BENDITA'),
+         ARM %in% c('PLACEBO',
+                    'BNZ 300MG 4W'))
+pcr_mat = make_matrix_pcr(pcr_dat = pcr_chagas_ss,N_max_PCR = 9)
+
+par(mar=c(2,7,0.5,0.5))
+xx2 = pcr_chagas_ss %>% ungroup %>% distinct(USUBJID,.keep_all = T)
+ind_y = which(!duplicated(xx2$ARM))
+plot_pcr_matrix(pcr_mat = pcr_mat,
+                my_breaks = my_breaks, 
+                my_break_legend = my_breaks_legend,
+                my_cols = my_cols,
+                arm_labels = unique(pcr_chagas_ss$USUBJID),
+                h_lines_ind = ind_y[-1]-0.5,
+                y_lab_ind = 1:nrow(pcr_mat),cex_y_lab = .7)
+
+# View(dat_summary %>% filter(USUBJID %in% c('BENDITA_466','BENDITA_594')))
+
+```
+
+## *Quantitative analysis*
+
+### *cumulative probabilities*
+
+*cumulative distributions of the qPCR CT values in individuals with + PCR during follow-up*
+
+```{r cum_CT_values_FUP}
+xlims=c(28,40)
+xs=seq(28,40, by=.1)
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         STUDYID=='BENDITA', 
+         !USUBJID %in% '681',
+         ARM!='PLACEBO',CT<40) 
+par(las=1)
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='BENDITA', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+for(aa in unique(pcr_chagas_ss$ARM)){
+  pcr_chagas_ss_aa = pcr_chagas_ss%>%filter(ARM==aa)
+  lines(xs, 1-ecdf(pcr_chagas_ss_aa$CT)(xs))
+}
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         STUDYID=='E1224', 
+         !ARM%in%c('PLACEBO',"BNZ 300MG 8W"),
+         CT<40) 
+par(las=1)
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='E1224', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+
+pcr_chagas_ss = pcr_chagas %>% 
+  filter(VISIT_numeric>EOT,
+         ARM%in%c('PLACEBO'),
+         CT<40) 
+par(las=1)
+plot(xs, 1-ecdf(pcr_chagas_ss$CT)(xs), main='PLACEBO', xlab='CT', 
+     ylab = 'Cumulative probability',panel.first=grid(),
+     xlim=xlims,type='l',lwd=2)
+text(x = 38,y=0.7,paste(round(100*(1-ecdf(pcr_chagas_ss$CT)(36))),'%',sep=''),cex=1.5)
+abline(v=36,lty=2)
+```
+
+### *rough failure estimates*
+
+```{r failure_proportions, fig.width=12, fig.height=8}
+strong_fail = 38
+summary_outcomes = pcr_chagas %>%
+  filter(!is.na(CT), Day_frm_rand>EOT) %>%
+  group_by(USUBJID, VISIT) %>%
+  mutate(N_PCRs = length(CT),
+         N_pos = sum(CT < 40),
+         N_weak_pos = sum(CT>strong_fail & CT<40),
+         Borderline_pos = (N_pos==1 & N_weak_pos==1)) %>%
+  distinct(USUBJID, VISIT, .keep_all = T) %>%
+  group_by(USUBJID) %>%
+  mutate(
+    N_fup_visits = length(N_PCRs),
+    N_fup_pcrs = sum(N_PCRs),
+    N_pos_tot = sum(N_pos),
+    N_weak_pos_tot = sum(N_weak_pos)) %>%
+  distinct(USUBJID, .keep_all = T) %>%
+  filter(N_fup_visits>1)
+
+xx=summary_outcomes %>% group_by(ARM) %>%
+  summarise(
+    N = length(N_pos_tot),
+    `FUP Visits` = median(N_fup_visits),
+    Fail = sum(N_pos_tot>0),
+    `Weak Fail` = sum(N_weak_pos_tot==1 & N_pos_tot==1),
+    `Strong Fail` = Fail- `Weak Fail`,
+    `Percent Fail` = round(100*Fail/N),
+    `Percent Strong Fail` = round(100*`Strong Fail`/N)
+  ) %>% arrange(`Percent Strong Fail`)
+xx
+
+require(DescTools)
+par(mar=c(10,5,1,1),las=1, cex.axis=1.3, cex.lab=1.3)
+plot(1:nrow(xx), xx$`Percent Fail`, ylim=c(0,100),panel.first = grid(),
+     xaxt='n', xlab='', ylab='Failure (%)',pch=15)
+for(i in 1:nrow(xx)){
+  out=100*BinomCI(x = xx$Fail[i], n = xx$N[i],method = 'jeffreys')
+  lines(rep(i,2), out[2:3])
+  
+  out=100*BinomCI(x = xx$`Strong Fail`[i], n = xx$N[i],method = 'jeffreys')
+  lines(rep(i,2)+.2, out[2:3],col='red')
+}
+axis(1, at=1:nrow(xx), labels = gsub(pattern = '+',replacement = '\n+',x = xx$ARM,fixed = T),
+     las=2,cex.axis=1)
+points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
+```
+
+### *stan model of cure*
+
+*compile model*
+
+```{r stan_model}
+file1 <- file.path("Stan_models/chagas_efficacy_model_CT_values_v5.stan")
+# file2 <- file.path("Stan_models/chagas_efficacy_model_CT_values_v4.stan")
+
+mod1 <- stan_model(file1)
+# mod2 <- stan_model(file2)
+
+Nchains=4
+N_iter=2000
+N_thin = 2
+RE_RUN_STAN_MODEL=F
+```
+
+*how often do 2+ come from the same sample?*
+
+```{r}
+double_pos = pcr_chagas %>%
+  filter(!is.na(CT))%>%
+  group_by(USUBJID, Day_frm_rand) %>%
+  mutate(MBREFID_perm = gtools::permute(MBREFID),
+         N_pos = sum(CT<40)) %>% 
+  filter(N_pos==2) %>%
+  mutate(N_blood_draws = length(unique(MBREFID[which(CT<40)])),
+         N_blood_draws_perm = length(unique(MBREFID_perm[which(CT<40)]))) %>%
+  distinct(USUBJID, Day_frm_rand, .keep_all = T)
+
+table(double_pos$N_pos)
+table(double_pos$N_blood_draws)
+table(double_pos$N_blood_draws_perm)
+```
+
+### *PLACEBOS fit*
+
+Fit to placebo data
+
+```{r bendita_placebo}
+pcr_stan = 
+  get_analysis_dataset(dat = pcr_chagas %>% filter(STUDYID=='BENDITA'),
+                       arms_select = 'PLACEBO', 
+                       analysis_IDs = unique(pcr_chagas$USUBJID),
+                       max_PCR_replicates = 3)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
+                                p_1_beta_prior = .5)
+
+writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
+                   data_list_stan$N,
+                   data_list_stan$Tmax,
+                   data_list_stan$Trt_max))
+
+fname='stan_out/bendita_placebos.rds'
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=N_iter, 
+                    thin=1, verbose=T)
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all',
+                          'lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
+```
+
+
+
+placebo data from E1224
+
+```{r e1224_placebo}
+pcr_stan = get_analysis_dataset(dat = pcr_chagas %>% filter(STUDYID=='E1224'),
+                                arms_select = 'PLACEBO', 
+                                analysis_IDs = dat_summary$USUBJID,
+                                max_PCR_replicates = 3)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
+                                p_1_beta_prior = .5)
+writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
+                   data_list_stan$N,
+                   data_list_stan$Tmax,
+                   data_list_stan$Trt_max))
+
+fname='stan_out/e1224_placebos.rds'
+#about 5 mins to run
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=N_iter, 
+                    thin=1, verbose=T)
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all',
+                          'lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
+```
+
+
+All placebo data
+
+```{r all_placebo}
+pcr_stan = get_analysis_dataset(dat = pcr_chagas,
+                                arms_select = 'PLACEBO', 
+                                analysis_IDs = dat_summary$USUBJID,
+                                max_PCR_replicates = 3)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan %>% arrange(Baseline_CT), 
+                                p_1_beta_prior = .5)
+
+fname='stan_out/all_placebos.rds'
+# about 10 mins to run
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- mod$sample(
+    data = data_list_stan,
+    seed = 123,
+    chains = Nchains,
+    parallel_chains = Nchains,
+    iter_warmup=N_warmup,
+    iter_sampling = N_sampling, 
+    init = 1,
+    thin = N_thin,
+    refresh = 500,
+    output_dir='stan_out/',
+    save_warmup=F
+  )
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+mcmc_intervals(fit_1$draws('CT_i'))+theme_minimal()+xlab('Steady state CT value')
+
+ct_i = colMeans(fit_1$draws('CT_i',format = 'matrix'))
+ct_t = colMeans(fit_1$draws('CT_t',format = 'matrix'))
+par(las=1)
+plot(data_list_stan$CT_blood_sample_mean, ct_t,
+     xlab='Mean observed Ct value',
+     ylab='Model predicted Ct value', 
+     panel.first = grid())
+lines(0:40, 0:40,lwd=3, col='red')
+
+pdf('model_fits_all_placebos.pdf',width = 12, height = 12)
+par(mfrow=c(3,3),las=1, family='serif',
+    mar=c(2,2,2,1),cex.axis=1.3,cex.lab=1.3)
+
+xlims = range(data_list_stan$t_actual)
+for(id in 1:data_list_stan$N){
+  ind = which(data_list_stan$id_ind==id)
+  plot(NA, NA, xlim = xlims, 
+       ylim = c(28, 50),
+       xlab='',ylab='',panel.first=grid(),
+       main= paste(id,': PLACEBO',sep = ''))
+  polygon(x = c(xlims+c(-100,100), rev(xlims)+c(100,-100)),
+          y = c(40,40,100,100),border = NA, col = adjustcolor('grey',.2))
+  for(t in ind){
+    for(j in 1:data_list_stan$Smax){
+      kmax = data_list_stan$k_replicates[t,j]
+      if(kmax>0){
+        ct_vals=data_list_stan$CT_obs[t, j, 1:kmax]
+        points(rep(data_list_stan$t_actual[t], kmax), ct_vals,col='darkgreen',
+               pch=2 + as.numeric(ct_vals==40))
+        
+      }
+    }
+  }
+  lines(data_list_stan$t_actual[ind], ct_t[ind], type='l',pch=16,lwd=3)
+  lines(data_list_stan$t_actual[ind], rep(ct_i[id],length(ind)),lty=2,lwd=3)
+}
+dev.off()
+```
+
+### analyses of treatment arms
+
+using per protocol population 2 (based on duration)
+
+```{r}
+pp_ids = dat_summary$USUBJID[dat_summary$PP_pop2]
+
+label_change = c("p_1[1]" ="BNZ 300mg 8wks",
+                 "p_1[2]" ="BNZ 300 wkly + E1224",
+                 "p_1[3]" ="BNZ 300mg 4wks",
+                 "p_1[4]" ="BNZ 150mg 4wks",
+                 "p_1[5]" ="BNZ 150mg 4wks + E1224",
+                 "p_1[6]" ="BNZ 300mg 2wks",
+                 "p_1[7]" ="E1224 HD 4W",
+                 "p_1[8]" ="E1224 HD 8W",
+                 "p_1[9]" ="E1224 LD 8W")
+```
+
+All BENDITA data -
+
+```{r bendita_stan_model}
+arms_bendita = c('PLACEBO',
+                 'BNZ 300MG 8W',
+                 'BNZ 300MG/WK + E1224 300MG 8W',
+                 'BNZ 300MG 4W',
+                 "BNZ 150MG 4W",
+                 "BNZ 150MG 4W + E1224 300MG 8W",
+                 'BNZ 300MG 2W')
+pcr_stan = get_analysis_dataset(dat = pcr_chagas %>% filter(STUDYID=='BENDITA'),
+                                arms_select = arms_bendita, 
+                                analysis_IDs = pp_ids,
+                                max_PCR_replicates = 3)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
+                                p_1_beta_prior = .5,plot_data = T)
+writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
+                   data_list_stan$N,
+                   data_list_stan$Tmax,
+                   data_list_stan$Trt_max))
+fname='stan_out/bendita_pp2.rds'
+# 35 mins to run
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=N_iter, 
+                    thin=N_thin, verbose=T)
+  
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all','lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
+```
+
+All E1224 data
+
+```{r e1224_stan_model}
+arms_e1224 = c('PLACEBO',
+               'BNZ 300MG 8W',
+               "E1224 400MG 4W",
+               "E1224 400MG 8W",
+               "E1224 200MG 8W")
+pcr_stan = get_analysis_dataset(dat = pcr_chagas  %>% filter(STUDYID=='E1224'),
+                                arms_select = arms_e1224, 
+                                analysis_IDs = dat_summary$USUBJID,
+                                max_PCR_replicates = 3,EOT_delta = 0)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
+                                p_1_beta_prior = .5)
+writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
+                   data_list_stan$N,
+                   data_list_stan$Tmax,
+                   data_list_stan$Trt_max))
+
+fname='stan_out/e1224_pp2.rds'
+# about 40 mins to run
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=N_iter, 
+                    thin=N_thin, verbose=T)
+  
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all','lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
+```
+
+All data! Per protocol analysis
+
+```{r all_data_model_PP}
+arms_all = union(arms_bendita, arms_e1224) 
+pcr_stan = get_analysis_dataset(dat = pcr_chagas,
+                                arms_select = arms_all, 
+                                analysis_IDs = pp_ids,
+                                max_PCR_replicates = 3)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan %>% arrange(Baseline_CT), 
+                                p_1_beta_prior = .5)
+writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
+                   data_list_stan$N,
+                   data_list_stan$Tmax,
+                   data_list_stan$Trt_max))
+
+fname='stan_out/all_data_PP.rds'
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=4000, 
+                    thin=N_thin, verbose=T)
+  
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all','lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
+```
+
+
+
+
+```{r all_data_model_ITT}
+arms_all = union(arms_bendita, arms_e1224) 
+pcr_stan = get_analysis_dataset(dat = pcr_chagas,
+                                arms_select = arms_all, 
+                                analysis_IDs = unique(pcr_chagas$USUBJID),
+                                max_PCR_replicates = 3)
+data_list_stan = 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan %>% arrange(Baseline_CT), 
+                                p_1_beta_prior = .5)
+writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
+                   data_list_stan$N,
+                   data_list_stan$Tmax,
+                   data_list_stan$Trt_max))
+
+fname='stan_out/all_data_ITT.rds'
+if(RE_RUN_STAN_MODEL | !file.exists(fname)){
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=N_iter, 
+                    thin=N_thin, verbose=T)
+  save(fit_1, file = fname)
+} else {
+  load(fname)
+}
+
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all','lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
+```

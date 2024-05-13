@@ -1,3 +1,5 @@
+## This makes an analysis dataset for the E1224 and BENDITA trials
+
 library(tidyverse)
 library(tibble)
 library(dplyr)
@@ -20,7 +22,7 @@ ts_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/TS 2024-04-15.csv')
 mb_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/MB 2024-04-15.csv')
 pc_chagas = read_csv('CH_2024_1_Watson/DATA 2024-04-15/PC 2024-04-15.csv')
 
-table(dm_chagas$STUDYID)
+table(dm_chagas$STUDYID,useNA = 'ifany')
 
 
 out=chagas_adam(dm_chagas = dm_chagas,
@@ -30,10 +32,21 @@ out=chagas_adam(dm_chagas = dm_chagas,
                 ts_chagas = ts_chagas,
                 vs_chagas = vs_chagas,
                 sa_chagas = sa_chagas,
-                lb_chagas = lb_chagas,study_remove = 'CGBKZSR')
+                lb_chagas = lb_chagas,
+                study_remove = 'CGBKZSR')
 
 
 pcr_chagas=out$pcr_chagas
+pcr_chagas = pcr_chagas %>% select(!starts_with('DOMAIN'),   
+                                   -MBTESTCD,
+                                   -MBMETHOD,
+                                   -MBTEST, -MBTSTDTL, 
+                                   -MBORRES, -MBSTRESC, -MBSTRESN,
+                                   -MBSPEC, -VISITNUM, -VISITDY,
+                                   -EPOCH, -MBDY,-ARMCD,-MBSEQ)
+
+unique(pcr_chagas$STUDYID)
+
 sa_chagas=out$sa_chagas
 lb_chagas=out$lb_chagas
 
