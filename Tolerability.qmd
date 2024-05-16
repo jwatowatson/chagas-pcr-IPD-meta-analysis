@@ -34,8 +34,6 @@ in_chagas =  merge(in_chagas, ds_chagas[, c('USUBJID','Day_randomisation')], all
   ) %>% select(USUBJID, INTRT, INDOSE, IN_Day_frm_rand)
 ```
 
-
-
 ## Load data
 
 ```{r}
@@ -43,28 +41,50 @@ load('RData/sa_chagas.RData')
 load('RData/lb_chagas.RData')
 load('RData/pcr_chagas.RData')
 
+pcr_chagas = pcr_chagas%>% filter(!ARM=='FAILED SCREENING')
+sa_chagas = sa_chagas%>% filter(!ARM=='FAILED SCREENING')
 summary_dat = pcr_chagas%>%distinct(USUBJID, .keep_all = T)
 
 table(summary_dat$ARM, summary_dat$BNZ_total_dose>0)
-lb_chagas = merge(lb_chagas, 
+lb_chagas = merge(lb_chagas %>% filter(!ARM=='FAILED SCREENING'), 
                   summary_dat[, c('USUBJID','BNZ_total_dose_mg_kg')],
-                  by = c('USUBJID'), all = T)
+                  by = c('USUBJID'), all = T) 
 ```
 
 ## BENDITA
 
 ## Tolerability
 
-```{r treatment_discont, fig.height=10, fig.width=10}
-dis_data = pcr_chagas %>%  
-  distinct(ID, .keep_all = T) %>%
+```{r treatment_discont, fig.height=9, fig.width=9}
+dis_data = pcr_chagas %>% 
+  filter(ARM != "FAILED SCREENING") %>%
+  distinct(USUBJID, .keep_all = T) %>%
   mutate(
     discont = ifelse(!is.na(time_stop),1,0),
-    paused = ifelse(!is.na(time_pause),1,0),
     time_stop = ifelse(is.na(time_stop), 56, time_stop),
     time_stop = ifelse(time_stop>56, 56, time_stop),
-    time_pause = ifelse(is.na(time_pause), 56, time_pause),
-    time_pause = ifelse(time_pause>56, 56, time_pause),
+    ARM= as.factor(case_when(
+      ARM == "PLACEBO" ~ 'Placebo',
+      ARM == 'BNZ 150MG 4W' ~ 'BNZ 150mg-4wks',
+      ARM == 'BNZ 150MG 4W + E1224 300MG 8W' ~ 'BNZ 150mg-4wks+\nE1224',
+      ARM == "BNZ 300MG 4W" ~ 'BNZ 300mg-4wks',
+      ARM == "BNZ 300MG 2W" ~ 'BNZ 300mg-2wks',
+      ARM == "BNZ 300MG 8W" ~ 'BNZ 300mg-8wks',
+      ARM == "BNZ 300MG/WK + E1224 300MG 8W" ~ 'BNZ 300mg-weekly+\nE1224',
+      ARM == "E1224 400MG 8W" ~ 'E1224 HD-8wks',
+      ARM == "E1224 400MG 4W" ~ 'E1224 HD-4wks',
+      ARM == "E1224 200MG 8W" ~ 'E1224 LD-8wks',
+    )),
+    ARM = factor(ARM, levels=c('Placebo',
+                               'BNZ 300mg-weekly+\nE1224',
+                               'BNZ 300mg-2wks',
+                               'BNZ 150mg-4wks',
+                               'BNZ 150mg-4wks+\nE1224',
+                               'BNZ 300mg-4wks',
+                               'E1224 HD-4wks',
+                               'E1224 LD-8wks',
+                               'E1224 HD-8wks',
+                               'BNZ 300mg-8wks')),
     ARM2 = as.factor(case_when(
       ARM == "PLACEBO" ~ 'Placebo',
       ARM %in% c('BNZ 150MG 4W','BNZ 150MG 4W + E1224 300MG 8W') ~ '150mg-4wks',
@@ -75,11 +95,61 @@ dis_data = pcr_chagas %>%
       T ~ ARM))
   )
 
+levels(dis_data$ARM)
 bendita_dis = dis_data %>% filter(STUDYID=='BENDITA')
 my_pal=RColorBrewer::brewer.pal(12, name = 'Paired')
-names(my_pal)=levels(dis_data$ARM2)
+names(my_pal)[12]='BNZ 300mg-2wks'
+names(my_pal)[1]='BNZ 150mg-4wks'
+names(my_pal)[7]='BNZ 150mg-4wks+\nE1224'
+names(my_pal)[2]='BNZ 300mg-4wks'
+names(my_pal)[3]='E1224 LD-8wks'
+names(my_pal)[4]='E1224 HD-8wks'
+names(my_pal)[8]='E1224 HD-4wks'
 
+names(my_pal)[6]='BNZ 300mg-8wks'
 
+names(my_pal)[10]='BNZ 300mg-weekly+\nE1224'
+names(my_pal)[11]='Placebo'
+
+table(dis_data$ARM,dis_data$discont)
+
+s1 <- survfit(Surv(time_stop, discont) ~ ARM, data = dis_data)
+unique(s1$strata)
+ggsurvplot(s1, data = dis_data, risk.table = T,fun = function(x) 1-x,
+           title='Treatment discontinuation',ylim=c(0,0.15),legend='top',
+           legend.labs=levels(dis_data$ARM),
+           ylab='Proportion discontinued',
+           xlab='Time from randomisation (days)',
+           legend.title='', linetype=c(2,1,3,2,1,2,2,3,1,1),
+           fontsize=4,font.x = 14,font.y = 14,
+           ggtheme=theme_minimal(),
+           palette = my_pal[levels(dis_data$ARM)],
+           tables.y.text.col=T,tables.y.text=F)
+
+ids_wkly_discont=c(9, 394, 805, 1107)
+```
+
+```{r weekly_liver_enzymes}
+#View(sa_chagas %>% filter(USUBJID %in% ids_wkly_discont, SAACN %in% c('DRUG WITHDRAWN', 'DRUG INTERRUPTED')))
+
+lb_interrupt= lb_chagas %>% filter(USUBJID %in% ids_wkly_discont, !is.na(`Alkaline Phosphatase`)|!is.na(`Gamma Glutamyl Transferase`)|!is.na(`Aspartate Aminotransferase`)|!is.na(`Alanine Aminotransferase`))
+ylims = range(range(log2(lb_interrupt$`Alanine Aminotransferase`),na.rm = T),
+              range(log2(lb_interrupt$`Aspartate Aminotransferase`),na.rm = T),
+              range(log2(lb_interrupt$`Gamma Glutamyl Transferase`),na.rm = T))
+par(mfrow=c(2,2),las=1)
+for(id in unique(lb_interrupt$USUBJID)){
+  lb_id = lb_interrupt%>%filter(USUBJID==id)%>% arrange(Day_frm_rand)
+  plot(lb_id$Day_frm_rand, log2(lb_id$`Alanine Aminotransferase`), type='b',ylim=ylims,
+       col='darkred', panel.first=grid(),main=id,
+       yaxt='n',ylab='value',xlab='Days from randomisation')
+  axis(2, at = 5:9, labels=2^(5:9))
+  lines(lb_id$Day_frm_rand, log2(lb_id$`Aspartate Aminotransferase`), type='b',col='darkgreen')
+  lines(lb_id$Day_frm_rand, log2(lb_id$`Gamma Glutamyl Transferase`), type='b',col='pink')
+}
+legend('topright', col=c('darkred','darkgreen','pink'),legend = c('ALT','AST','GGT'),lwd=2,inset=0.03)
+```
+
+```{r}
 s1 <- survfit(Surv(time_stop, discont) ~ ARM2, data = bendita_dis)
 unique(s1$strata)
 ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
@@ -87,13 +157,6 @@ ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
            legend.labs=levels(droplevels(bendita_dis$ARM2)),
            legend.title='', 
            palette = my_pal[levels(droplevels(bendita_dis$ARM2))])
-# 
-# s1 <- survfit(Surv(time_pause, paused) ~ ARM2, data = bendita_dis)
-# ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
-#            title='Pausing treatment',ylim=c(0,0.4),legend='top',
-#            legend.labs=levels(droplevels(bendita_dis$ARM2)),
-#            legend.title='', palette = my_pal)
-
 
 e1224_dis = dis_data %>% filter(STUDYID=='E1224') 
 s1 <- survfit(Surv(time_stop, discont) ~ ARM2, data = e1224_dis)
@@ -104,38 +167,14 @@ ggsurvplot(s1, data = bendita_dis, risk.table = T,fun = function(x) 1-x,
            legend.title='', 
            palette = my_pal[levels(droplevels(e1224_dis$ARM2))])
 
-# s1 <- survfit(Surv(time_pause, paused) ~ ARM2, data = e1224_dis)
-# ggsurvplot(s1, data = e1224_dis, risk.table = T,fun = function(x) 1-x,
-#            title='Pausing treatment',ylim=c(0,0.4),legend='top',
-#            legend.labs=levels(droplevels(e1224_dis$ARM2)),
-#            legend.title='', palette = my_pal)
 
 ```
-
-
-
-Trying to understand pausing treatment in the 2 week arm
-
-```{r}
-ids_2wks_pause = dis_data %>% 
-  filter(paused==1,STUDYID=='BENDITA',ARM2=='300mg-2wks') %>%
-  select(USUBJID, time_stop, time_pause, BNZ_total_dose)
-in_chagas_pause = in_chagas %>% 
-  filter(USUBJID %in% ids_2wks_pause$USUBJID,
-         INTRT%in%c('PLACEBO','BENZNIDAZOLE')) %>%
-  arrange(USUBJID, IN_Day_frm_rand, INTRT)
-
-in_chagas_pause = 
-  merge(in_chagas_pause, ids_2wks_pause, by = 'USUBJID',all.x = T)
-
-
-```
-
-
 
 ### Skin issues
 
 ```{r}
+write_csv(x = sa_chagas[!duplicated(sa_chagas$SATERM), ], file = '~/Downloads/all_sa_events.csv')
+
 # skin related terms to select
 my_terms = c('erythem*','papules','prurit*',
              'itch*','dermatit*','rash','urtic*','skin',
@@ -185,7 +224,6 @@ summary(m2)
 
 ```
 
-
 ```{r bendita}
 sa_chagas_ben = sa_chagas_skin%>%filter(STUDYID=='BENDITA')
 table(sa_chagas_ben$ARM2, sa_chagas_ben$N_reported_SAEs>0)
@@ -195,9 +233,7 @@ summary(m3)
 
 ```
 
-
 ## Lab data
-
 
 ### Neutropenia
 
@@ -292,18 +328,13 @@ ind = which(rownames(imputed_neutrophils) %in% ids_plcebo)
 lines(1:90, apply(imputed_neutrophils[ind, ], 2, mean, na.rm=T),type='l',lwd=3,col='purple')
 ```
 
-
-
-
 ```{r}
 in_chagas_neut = merge(in_chagas, pcr_chagas[!duplicated(pcr_chagas$USUBJID),c('USUBJID','ARM')], by='USUBJID',all.x = T) %>% filter(USUBJID %in%ids_bnz_neut, INTRT == 'BENZNIDAZOLE')%>%
   arrange(USUBJID, IN_Day_frm_rand)
 
 ```
 
-
 ## AST/ALT
-
 
 ```{r}
 lb_chagas = lb_chagas %>% group_by(USUBJID) %>%
@@ -345,4 +376,3 @@ plot(jitter(lb_chagas$Day_frm_rand), lb_chagas$AST_log2_fold_change,
 axis(2, at = -2:4, labels = c(2^(-2:4)))
 
 ```
-

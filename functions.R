@@ -8,7 +8,7 @@ chagas_adam = function(dm_chagas, ds_chagas,
   # only select individuals who were randomised
   dm_chagas = dm_chagas %>% 
     filter(#ARM != "NOT PROVIDED IN THE CONTRIBUTED DATASET",
-           !STUDYID %in% study_remove) %>%
+      !STUDYID %in% study_remove) %>%
     mutate(
       ARM = gsub(pattern='BENZNIDAZOLE',replacement='BNZ',x=ARM),
       ARM = gsub(pattern='FOSRAVUCONAZOLE',replacement='E1224',x=ARM),
@@ -188,7 +188,7 @@ chagas_adam = function(dm_chagas, ds_chagas,
   
   sa_chagas$SATERM = stringr::str_conv(sa_chagas$SATERM, "UTF-8")
   sa_chagas$SATERM = tolower(sa_chagas$SATERM)
-  sa_chagas = sa_chagas %>% filter(EPOCH %in% c('FOLLOW-UP','TREATMENT') | 
+  sa_chagas2 = sa_chagas %>% filter(EPOCH %in% c('FOLLOW-UP','TREATMENT') | 
                                      SACAT=='CONTRIBUTOR-REPORTED ADVERSE EVENTS',
                                    is.na(SAREL) | 
                                      SAREL %in% c('RELATED','UNASSESSABLE/UNCLASSIFIED'),
@@ -482,12 +482,16 @@ make_stan_dataset_model_quant =
 
 
 
-get_analysis_dataset = function(dat, arms_select, analysis_IDs, max_PCR_replicates=3,
+get_analysis_dataset = function(dat, arms_select=NA, analysis_IDs=NA, 
+                                max_PCR_replicates=3,
                                 EOT_delta=0,
                                 EOT_placebo = 0){
   
   # Select IDs, timepoints and make numeric ID for stan code
-  pcr_chagas_ss_input = dat %>% 
+  if(any(is.na(arms_select))) arms_select=unique(dat$ARM)
+  if(any(is.na(analysis_IDs))) analysis_IDs=unique(dat$USUBJID)
+  
+  pcr_chagas_ss_input = dat %>% ungroup() %>%
     filter(ARM %in% arms_select,
            USUBJID %in% analysis_IDs,
            Day_frm_rand <=0 | #baseline
@@ -495,6 +499,7 @@ get_analysis_dataset = function(dat, arms_select, analysis_IDs, max_PCR_replicat
              ARM=='PLACEBO' # not treated
     ) %>%
     mutate(EOT = ifelse(ARM=='PLACEBO', EOT_placebo, EOT)) %>%
+    arrange(ARM, USUBJID) %>%
     group_by(ARM,USUBJID) %>%
     mutate(
       ID_numeric = cur_group_id() # make a numeric ID 1..N
@@ -534,6 +539,35 @@ get_analysis_dataset = function(dat, arms_select, analysis_IDs, max_PCR_replicat
 
 
 
-plot_individual_fits = function(data_list_stan){
+plot_individual_fits = function(data_list_stan,xx_CT_t,xx_CT, f_out='model_fits.pdf'){
+  pdf(file = f_out, width = 12, height = 12)
   
+  par(mfrow=c(3,3),las=1, family='serif',mar=c(2,2,2,1))
+  for(id in 1:data_list_stan$N){
+    ind = which(data_list_stan$id_ind==id)
+    ts = data_list_stan$t_actual[ind]
+    
+    xlims = range(data_list_stan$t_actual)
+    plot(NA, NA, xlim = xlims, 
+         ylim = c(28, 50),
+         xlab='',ylab='',panel.first=grid(),
+         main=arms_all[data_list_stan$trt[id]])
+    polygon(x = c(xlims+c(-100,100), rev(xlims)+c(100,-100)),
+            y = c(40,40,100,100),border = NA, col = adjustcolor('grey',.2))
+    abline(h=40)
+    for(t in ind){
+      for(j in 1:3){
+        kmax=data_list_stan$k_replicates[t,j]
+        if(kmax>0){
+          for(k in 1:kmax){
+            points(data_list_stan$t_actual[t], data_list_stan$CT_obs[t, j, k],
+                   pch= 1 + as.numeric(data_list_stan$CT_obs[ind, j, k]==40)*16)
+          }
+        }
+      }
+    }
+    lines(ts, xx_CT_t[ind], type='b',pch=16,lwd=1)
+    lines(ts, xx_CT[ind], col='red',lwd=3)
+  }
+  dev.off()
 }

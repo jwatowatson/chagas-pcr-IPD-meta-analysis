@@ -15,7 +15,7 @@ library(RColorBrewer)
 library(tidyverse)
 # library(cmdstanr)
 library(rstan)
-library(posterior)
+# library(posterior)
 library(bayesplot)
 library(gridExtra)
 library(survival)
@@ -48,12 +48,19 @@ plot(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^15,
 vals = c(0.0002, 0.001, 0.01, .1, 1, 10)
 axis(1, at = log10(vals),labels = vals)
 abline(h=0.5,lty=2)
+# 30 independent draws
+lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^30,
+      lty=1,lwd=3,col='grey')
+
 # 5 independent draws
 lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas))^5,
       lty=2,lwd=3,col='darkblue')
 # single draw
 lines(my_lambdas, 1-expint::gammainc(1,5*(10^my_lambdas)),
       lty=3,lwd=2)
+
+legend('topleft', legend = c(30, 15, 5, 1), title = 'n draws',
+       lwd=3, lty=c(1,1,2,3), col=c('grey','darkred', 'darkblue','black'), inset = 0.03, cex=1.5)
 ```
 
 ## *Load data*
@@ -79,16 +86,17 @@ pcr_chagas = pcr_chagas %>%
   filter(!is.na(CT))
 
 pcr_chagas_trip = pcr_chagas %>% 
-  filter(repeats==3, n_40<=3) %>%
+  filter(repeats==3, n_40<3) %>%
   distinct(USUBJID, Day_frm_rand, MBREFID, .keep_all = T)
 pcr_chagas_trip %>%
   ggplot(aes(x=CT_mean_sample, y=CT_sd_sample,
              color=as.factor(n_40)))+
   geom_point()+
-  geom_smooth(data = filter(pcr_chagas_trip, n_40==0))+
-  theme_classic()+
-  theme(axis.text=element_text(size=12),
-        axis.title=element_text(size=14,face="bold"))+
+  geom_smooth(data = filter(pcr_chagas_trip, n_40==0, CT_mean_sample<36),
+              colour="black", linewidth=2)+
+  theme_minimal()+
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16,face="bold"))+
   xlab('Mean CT value across triplicates')+
   ylab('Standard deviation of CT values')+
   labs(color='CT=40') 
@@ -160,6 +168,19 @@ pcr_chagas = pcr_chagas %>%
   arrange(STUDYID, ARM, Mean_CT_inv_baseline, Percent_pos_baseline,
           USUBJID, VISIT_numeric, PCR_number)
 
+FUP_dat = pcr_chagas %>% filter(Day_frm_rand>EOT) %>%
+  group_by(USUBJID) %>%
+  mutate(Fail = any(CT<40),
+         N_Fail = sum(CT<40),
+         min_Fail = min(CT),
+         N_PCRs_FUP = n()) %>% ungroup() %>%
+distinct(USUBJID,.keep_all = T) %>% select(USUBJID, ARM, Fail, N_Fail, N_PCRs,min_Fail)
+
+table(FUP_dat$ARM, FUP_dat$Fail)
+table(FUP_dat$ARM, FUP_dat$N_Fail==1)
+table(FUP_dat$ARM, FUP_dat$N_Fail==1 & FUP_dat$min_Fail>=38)
+
+
 screen_fails = pcr_chagas %>% filter(ARM=='FAILED SCREENING')
 pcr_chagas = pcr_chagas %>% filter(!ARM=='FAILED SCREENING')
 
@@ -181,8 +202,6 @@ table(dat_summary$N_FUP_VISITS)
 table(dat_summary$ARM, dat_summary$BNZ_total_days)
 ```
 
-
-
 ### patients failed screening
 
 ```{r}
@@ -192,9 +211,6 @@ screen_fails = screen_fails %>% group_by(USUBJID) %>%
   distinct(USUBJID, .keep_all = T)
 table(screen_fails$STUDYID, screen_fails$N_pos==0)
 ```
-
-
-
 
 ```{r pcr_plot, fig.width=15, fig.height=12}
 my_breaks = c(10, 30, 34, 36, 38, 39.99999,40)
@@ -471,14 +487,11 @@ points(1:nrow(xx)+.2, xx$`Percent Strong Fail`,col='red',pch=16)
 
 ```{r stan_model}
 file1 <- file.path("Stan_models/chagas_efficacy_model_CT_values_v5.stan")
-# file2 <- file.path("Stan_models/chagas_efficacy_model_CT_values_v4.stan")
-
 mod1 <- stan_model(file1)
-# mod2 <- stan_model(file2)
 
 Nchains=4
 N_iter=2000
-N_thin = 2
+N_thin = Nchains
 RE_RUN_STAN_MODEL=F
 ```
 
@@ -502,150 +515,35 @@ table(double_pos$N_blood_draws_perm)
 
 ### *PLACEBOS fit*
 
-Fit to placebo data
-
-```{r bendita_placebo}
-pcr_stan = 
-  get_analysis_dataset(dat = pcr_chagas %>% filter(STUDYID=='BENDITA'),
-                       arms_select = 'PLACEBO', 
-                       analysis_IDs = unique(pcr_chagas$USUBJID),
-                       max_PCR_replicates = 3)
-data_list_stan = 
-  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
-                                p_1_beta_prior = .5)
-
-writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
-                   data_list_stan$N,
-                   data_list_stan$Tmax,
-                   data_list_stan$Trt_max))
-
-fname='stan_out/bendita_placebos.rds'
-if(RE_RUN_STAN_MODEL | !file.exists(fname)){
-  fit_1 <- sampling(mod1, data = data_list_stan,
-                    chains = Nchains,iter=N_iter, 
-                    thin=1, verbose=T)
-  save(fit_1, file = fname)
-} else {
-  load(fname)
-}
-traceplot(fit_1, pars = c('sigma_PCR',
-                          'sigma','alpha_PCR',
-                          'CT_pop_baseline',
-                          'CT_sigma_pop_baseline',
-                          'sigma_trt_all',
-                          'lambda_trt','p_1'))
-plot(fit_1, pars='p_1')
-plot(fit_1, pars='lambda_trt')
-```
-
-
-
-placebo data from E1224
-
-```{r e1224_placebo}
-pcr_stan = get_analysis_dataset(dat = pcr_chagas %>% filter(STUDYID=='E1224'),
-                                arms_select = 'PLACEBO', 
-                                analysis_IDs = dat_summary$USUBJID,
-                                max_PCR_replicates = 3)
-data_list_stan = 
-  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
-                                p_1_beta_prior = .5)
-writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
-                   data_list_stan$N,
-                   data_list_stan$Tmax,
-                   data_list_stan$Trt_max))
-
-fname='stan_out/e1224_placebos.rds'
-#about 5 mins to run
-if(RE_RUN_STAN_MODEL | !file.exists(fname)){
-  fit_1 <- sampling(mod1, data = data_list_stan,
-                    chains = Nchains,iter=N_iter, 
-                    thin=1, verbose=T)
-  save(fit_1, file = fname)
-} else {
-  load(fname)
-}
-traceplot(fit_1, pars = c('sigma_PCR',
-                          'sigma','alpha_PCR',
-                          'CT_pop_baseline',
-                          'CT_sigma_pop_baseline',
-                          'sigma_trt_all',
-                          'lambda_trt','p_1'))
-plot(fit_1, pars='p_1')
-plot(fit_1, pars='lambda_trt')
-```
-
-
-All placebo data
+Fit to placebo data from both trials
 
 ```{r all_placebo}
 pcr_stan = get_analysis_dataset(dat = pcr_chagas,
-                                arms_select = 'PLACEBO', 
+                                arms_select = 'PLACEBO',
                                 analysis_IDs = dat_summary$USUBJID,
                                 max_PCR_replicates = 3)
-data_list_stan = 
-  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan %>% arrange(Baseline_CT), 
+data_list_stan =
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan,
                                 p_1_beta_prior = .5)
 
 fname='stan_out/all_placebos.rds'
 # about 10 mins to run
 if(RE_RUN_STAN_MODEL | !file.exists(fname)){
-  fit_1 <- mod$sample(
-    data = data_list_stan,
-    seed = 123,
-    chains = Nchains,
-    parallel_chains = Nchains,
-    iter_warmup=N_warmup,
-    iter_sampling = N_sampling, 
-    init = 1,
-    thin = N_thin,
-    refresh = 500,
-    output_dir='stan_out/',
-    save_warmup=F
-  )
+  fit_1 <- sampling(mod1, data = data_list_stan,
+                    chains = Nchains,iter=N_iter,
+                    thin=N_thin, verbose=T)
   save(fit_1, file = fname)
 } else {
   load(fname)
 }
-mcmc_intervals(fit_1$draws('CT_i'))+theme_minimal()+xlab('Steady state CT value')
-
-ct_i = colMeans(fit_1$draws('CT_i',format = 'matrix'))
-ct_t = colMeans(fit_1$draws('CT_t',format = 'matrix'))
-par(las=1)
-plot(data_list_stan$CT_blood_sample_mean, ct_t,
-     xlab='Mean observed Ct value',
-     ylab='Model predicted Ct value', 
-     panel.first = grid())
-lines(0:40, 0:40,lwd=3, col='red')
-
-pdf('model_fits_all_placebos.pdf',width = 12, height = 12)
-par(mfrow=c(3,3),las=1, family='serif',
-    mar=c(2,2,2,1),cex.axis=1.3,cex.lab=1.3)
-
-xlims = range(data_list_stan$t_actual)
-for(id in 1:data_list_stan$N){
-  ind = which(data_list_stan$id_ind==id)
-  plot(NA, NA, xlim = xlims, 
-       ylim = c(28, 50),
-       xlab='',ylab='',panel.first=grid(),
-       main= paste(id,': PLACEBO',sep = ''))
-  polygon(x = c(xlims+c(-100,100), rev(xlims)+c(100,-100)),
-          y = c(40,40,100,100),border = NA, col = adjustcolor('grey',.2))
-  for(t in ind){
-    for(j in 1:data_list_stan$Smax){
-      kmax = data_list_stan$k_replicates[t,j]
-      if(kmax>0){
-        ct_vals=data_list_stan$CT_obs[t, j, 1:kmax]
-        points(rep(data_list_stan$t_actual[t], kmax), ct_vals,col='darkgreen',
-               pch=2 + as.numeric(ct_vals==40))
-        
-      }
-    }
-  }
-  lines(data_list_stan$t_actual[ind], ct_t[ind], type='l',pch=16,lwd=3)
-  lines(data_list_stan$t_actual[ind], rep(ct_i[id],length(ind)),lty=2,lwd=3)
-}
-dev.off()
+traceplot(fit_1, pars = c('sigma_PCR',
+                          'sigma','alpha_PCR',
+                          'CT_pop_baseline',
+                          'CT_sigma_pop_baseline',
+                          'sigma_trt_all',
+                          'lambda_trt','p_1'))
+plot(fit_1, pars='p_1')
+plot(fit_1, pars='lambda_trt')
 ```
 
 ### analyses of treatment arms
@@ -691,9 +589,8 @@ fname='stan_out/bendita_pp2.rds'
 # 35 mins to run
 if(RE_RUN_STAN_MODEL | !file.exists(fname)){
   fit_1 <- sampling(mod1, data = data_list_stan,
-                    chains = Nchains,iter=N_iter, 
+                    chains = Nchains,iter=N_iter,
                     thin=N_thin, verbose=T)
-  
   save(fit_1, file = fname)
 } else {
   load(fname)
@@ -732,9 +629,9 @@ fname='stan_out/e1224_pp2.rds'
 # about 40 mins to run
 if(RE_RUN_STAN_MODEL | !file.exists(fname)){
   fit_1 <- sampling(mod1, data = data_list_stan,
-                    chains = Nchains,iter=N_iter, 
+                    chains = Nchains,iter=N_iter,
                     thin=N_thin, verbose=T)
-  
+
   save(fit_1, file = fname)
 } else {
   load(fname)
@@ -758,7 +655,7 @@ pcr_stan = get_analysis_dataset(dat = pcr_chagas,
                                 analysis_IDs = pp_ids,
                                 max_PCR_replicates = 3)
 data_list_stan = 
-  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan %>% arrange(Baseline_CT), 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
                                 p_1_beta_prior = .5)
 writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
                    data_list_stan$N,
@@ -768,55 +665,93 @@ writeLines(sprintf('Fitting the model to data from %s individuals, with %s uniqu
 fname='stan_out/all_data_PP.rds'
 if(RE_RUN_STAN_MODEL | !file.exists(fname)){
   fit_1 <- sampling(mod1, data = data_list_stan,
-                    chains = Nchains,iter=4000, 
-                    thin=N_thin, verbose=T)
+                    chains = Nchains,iter=2000, 
+                    thin=N_thin, verbose=T,
+                    pars='CT_t_j',include=F)
   
   save(fit_1, file = fname)
 } else {
   load(fname)
 }
 
-traceplot(fit_1, pars = c('sigma_PCR',
-                          'sigma','alpha_PCR',
-                          'CT_pop_baseline',
-                          'CT_sigma_pop_baseline',
-                          'sigma_trt_all','lambda_trt','p_1'))
-plot(fit_1, pars='p_1')
-plot(fit_1, pars='lambda_trt')
+p_1_estimates = summary(fit_1, pars='p_1')$summary
+rownames(p_1_estimates)=arms_all
+round(p_1_estimates[, c('2.5%','50%','97.5%')]*100, 1)
+my_pars = c('sigma_PCR',
+            'sigma','alpha_PCR',
+            'CT_pop_baseline',
+            'CT_sigma_pop_baseline',
+            'sigma_trt_all','lambda_trt','p_1')
+traceplot(fit_1, pars = my_pars)
+xx_all = as.matrix(fit_1) 
+xx = xx_all[, c(grep('p_1',x = colnames(xx_all)),grep('lambda_trt',x = colnames(xx_all)))]
+xx_CT_t = colMeans(xx_all[, grep('CT_t[',x = colnames(xx_all),fixed = T)])
+xx_CT = colMeans(xx_all[, grep('CT_i_t[',x = colnames(xx_all),fixed = T)])
+rm(xx_all)
+names(arms_all) = paste('p_1[',1:length(arms_all),']',sep = '')
+arms_all = gsub(pattern = '+',replacement = '\n',fixed = T,x = arms_all)
+mcmc_intervals(xx, regex_pars='p_1')+theme_minimal()+
+  scale_y_discrete(labels = arms_all)+
+  labs(title = "Probability of cure")
+
+names(arms_all) = paste('lambda_trt[',1:length(arms_all),']',sep = '')
+mcmc_intervals(xx, regex_pars='lambda_trt')+theme_minimal()+
+  scale_y_discrete(labels = arms_all)+
+  labs(title = "Reduction in parasite load (Ct)")
+
+plot_individual_fits(data_list_stan = data_list_stan,xx_CT_t = xx_CT_t,xx_CT = xx_CT,f_out = 'model_fits_all_PP.pdf')
 ```
 
-
-
-
 ```{r all_data_model_ITT}
-arms_all = union(arms_bendita, arms_e1224) 
 pcr_stan = get_analysis_dataset(dat = pcr_chagas,
-                                arms_select = arms_all, 
-                                analysis_IDs = unique(pcr_chagas$USUBJID),
+                                arms_select = NA, 
+                                analysis_IDs = NA,
                                 max_PCR_replicates = 3)
+unique(pcr_stan$ARM)
 data_list_stan = 
-  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan %>% arrange(Baseline_CT), 
+  make_stan_dataset_model_quant(pcr_chagas_ss_input = pcr_stan, 
                                 p_1_beta_prior = .5)
 writeLines(sprintf('Fitting the model to data from %s individuals, with %s unique timepoints and %s treatment arms',
                    data_list_stan$N,
                    data_list_stan$Tmax,
                    data_list_stan$Trt_max))
-
+arms_all = levels(data_list_stan$pcr_chagas_ss$ARM)
 fname='stan_out/all_data_ITT.rds'
 if(RE_RUN_STAN_MODEL | !file.exists(fname)){
   fit_1 <- sampling(mod1, data = data_list_stan,
-                    chains = Nchains,iter=N_iter, 
-                    thin=N_thin, verbose=T)
+                    chains = Nchains,iter=2000, 
+                    thin=N_thin, verbose=T,
+                    pars='CT_t_j',include=F)
   save(fit_1, file = fname)
 } else {
   load(fname)
 }
 
-traceplot(fit_1, pars = c('sigma_PCR',
-                          'sigma','alpha_PCR',
-                          'CT_pop_baseline',
-                          'CT_sigma_pop_baseline',
-                          'sigma_trt_all','lambda_trt','p_1'))
-plot(fit_1, pars='p_1')
-plot(fit_1, pars='lambda_trt')
+p_1_estimates = summary(fit_1, pars='p_1')$summary
+rownames(p_1_estimates)=arms_all
+round(p_1_estimates[, c('2.5%','50%','97.5%')]*100, 1)
+my_pars = c('sigma_PCR',
+            'sigma','alpha_PCR',
+            'CT_pop_baseline',
+            'CT_sigma_pop_baseline',
+            'sigma_trt_all','lambda_trt','p_1')
+traceplot(fit_1, pars = my_pars)
+xx_all = as.matrix(fit_1) 
+xx = xx_all[, c(grep('p_1',x = colnames(xx_all)),grep('lambda_trt',x = colnames(xx_all)))]
+xx_CT_t = colMeans(xx_all[, grep('CT_t[',x = colnames(xx_all),fixed = T)])
+xx_CT = colMeans(xx_all[, grep('CT_i_t[',x = colnames(xx_all),fixed = T)])
+rm(xx_all)
+names(arms_all) = paste('p_1[',1:length(arms_all),']',sep = '')
+arms_all = gsub(pattern = '+',replacement = '\n',fixed = T,x = arms_all)
+mcmc_intervals(xx, regex_pars='p_1')+theme_minimal()+
+  scale_y_discrete(labels = arms_all)+
+  labs(title = "Probability of cure")
+
+names(arms_all) = paste('lambda_trt[',1:length(arms_all),']',sep = '')
+mcmc_intervals(xx, regex_pars='lambda_trt')+theme_minimal()+
+  scale_y_discrete(labels = arms_all)+
+  labs(title = "Reduction in parasite load (Ct)")
+
+plot_individual_fits(data_list_stan = data_list_stan,xx_CT_t = xx_CT_t,xx_CT = xx_CT,f_out = 'model_fits_all_ITT.pdf')
+
 ```
